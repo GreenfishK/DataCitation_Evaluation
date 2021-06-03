@@ -1,0 +1,9 @@
+# wikipedia Category labels
+# URL: http://downloads.dbpedia.org/2016-10/core-i18n/en/category_labels_wkd_uris_en.ttl.bz2
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+select ?s ?p ?o
+where { 
+	?s ?p ?o .
+    filter (?p = rdfs:label)
+} limit 137241
+
