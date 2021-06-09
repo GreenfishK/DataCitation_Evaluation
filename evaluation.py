@@ -52,7 +52,7 @@ for filename in os.listdir(dir):
         triples = df.values.tolist()
         time = timeit.timeit(lambda: citation.cite(simple_query_fhir, metadata), number=1)
         print("{0} loops, best of {1}: {2} sec per loop".format(1, 1, time))
-        rdf_engine.insert_triple(triples)
+        rdf_engine.insert_triples(triples)
 
 
 query_store = qs.QueryStore()
