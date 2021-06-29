@@ -7,4 +7,3 @@ where {
 	?s ?p ?o .
     filter(?s = rdf:type)
 } order by ?s ?p ?o
-

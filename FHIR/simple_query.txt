@@ -11,4 +11,3 @@ where {
 	?s ?p ?o .
     filter(?s = fhir:Identifier)
 } order by ?s ?p ?o
-
