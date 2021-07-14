@@ -21,7 +21,7 @@ config = configparser.ConfigParser()
 config.read('config.ini')
 logging.getLogger().setLevel(int(config.get('LOGGING', 'level')))
 
-# Setup
+# Setup evaluation results table
 write_operations = ['insert', 'update']
 dataset_sizes = ['small', 'big']
 versioning_modes = ['q_perf', 'mem_sav']
@@ -35,11 +35,7 @@ my_index = pd.MultiIndex.from_product(iterables=[rounds, write_operations, datas
 eval_results = pd.DataFrame(columns=['memory_in_MB', 'time_in_seconds'],
                             index=my_index)
 
-
-# FHIR
-
-
-citation = ct.Citation(config.get('GRAPHDB_RDFSTORE_FHIR', 'get'), config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
+# init metadata
 metadata = ct_ut.MetaData(identifier="simple_query_fhir_eval_20210602143900",
                           publisher="Filip Kovacevic",
                           resource_type="RDF",
@@ -56,7 +52,7 @@ def update_triplestore(insert_statement: str, endpoint):
     sparql_post.query()
 
 
-def eval(write_operation: str, dataset_size: str, versioning_mode: str, query_type: str, procedure_to_evaluate: str):
+def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, query_type: str, procedure_to_evaluate: str):
     # Evaluation
     logging.info("Start evaluation with parameters: insert, small, mem_sav, simple query, cite_query")
 
@@ -64,11 +60,13 @@ def eval(write_operation: str, dataset_size: str, versioning_mode: str, query_ty
     query_store = qs.QueryStore()
     assert query_type in ["simple", "complex"], "Query must be either simple or complex."
     if dataset_size == "small":
+        citation = ct.Citation(config.get('GRAPHDB_RDFSTORE_FHIR', 'get'), config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
         post_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'post')
         query = open("FHIR/{0}_query.txt".format(query_type), "r").read()
         query_checksum = "{0}_query_fhir_checksum".format(query_type)
         delete_random_data = open("FHIR/delete_random_data.txt", "r").read()
     elif dataset_size == "big":
+        citation = ct.Citation(config.get('GRAPHDB_RDFSTORE_WIKI', 'get'), config.get('GRAPHDB_RDFSTORE_WIKI', 'post'))
         post_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'post')
         query = open("Wikipedia/{0}_query.txt".format(query_type), "r").read()
         query_checksum = "{0}_query_wiki_checksum".format(query_type)
@@ -111,11 +109,18 @@ def eval(write_operation: str, dataset_size: str, versioning_mode: str, query_ty
         if procedure_to_evaluate == "cite_query":
             query_store._remove(config.get("QUERY", query_checksum))
 
-    # Save evaluation results to csv
-    logging.info("Saving evaluation results")
-    eval_results.to_csv("evaluation_results.csv")
-
     # Reset experiment environment and settings
     update_triplestore(delete_random_data, post_endpoint)
     rdf_engine.reset_all_versions()
 
+    return eval_results
+
+
+evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evaluate="cite_query",
+         query_type="simple", dataset_size="small")
+evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evaluate="cite_query",
+         query_type="complex", dataset_size="small")
+
+# Save evaluation results to csv
+logging.info("Saving evaluation results")
+eval_results.to_csv("evaluation_results.csv")
