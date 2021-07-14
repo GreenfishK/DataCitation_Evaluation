@@ -1,7 +1,9 @@
 # wikipedia Category labels
+# RDF dataset that was used in this experiment can be retrieved from:
 # URL: http://downloads.dbpedia.org/2016-10/core-i18n/en/category_labels_wkd_uris_en.ttl.bz2
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX owl: <http://www.w3.org/2002/07/owl#>
+
 select ?s ?p ?o
 where { 
 	?s ?p ?o .

@@ -1,12 +1,13 @@
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX dc: <http://purl.org/dc/elements/1.1/>
-PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-PREFIX citing: <https://github.com/GreenfishK/DataCitation/citing/>
 # FHIR
 # URL: https://www.hl7.org/fhir/downloads.html --> RDF --> Definitions
 # * fhir.ttl (classes and predicates)
 # * rim.ttl (Resource information model)
 # * w5.ttl (classes and predicates)
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dc: <http://purl.org/dc/elements/1.1/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX citing: <https://github.com/GreenfishK/DataCitation/citing/>
+
 insert {
     ?s ?p ?new_label.
     <<?s ?p ?new_label>> citing:valid_from ?newVersion.
