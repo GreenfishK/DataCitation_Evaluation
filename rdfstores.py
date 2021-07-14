@@ -33,7 +33,8 @@ def eval_stardog():
     credentials = rdf.TripleStoreEngine.Credentials('admin', 'admin')
     rdf_engine_2 = rdf.TripleStoreEngine(config.get('STARDOG_RDFSTORE_FHIR', 'get'),
                                          config.get('STARDOG_RDFSTORE_FHIR', 'post'),
-                                         credentials=credentials)
+                                         credentials=credentials,
+                                         skip_connection_test=True)
     # Execute query against RDF* store
     try:
         result_set_2 = rdf_engine_2.get_data(select_statement=simple_query_fhir, yn_timestamp_query=False, )
@@ -57,6 +58,6 @@ def eval_jena():
         print(e)
 
 #eval_graphdb()
-#eval_stardog()
-eval_jena()
+eval_stardog()
+#eval_jena()
 

@@ -83,7 +83,8 @@ Service endpoints:
 * update: http://localhost:5820/DataCitation_FHIR/update
 
 ### Conclusion
-The endpoints seem to be the right ones as there is a response when accessing these endpoints via browser. 
-Authentication does not seem to work with SPARQL Wrapper and Stardog
-We get following message: Unauthorized: access is denied due to invalid credentials (unauthorized). 
-Check the credentials.
+Stardog requires authentication, which is seemingly not functioning when credentials are provided 
+via TripleStoreEngine which employs SPARQL Wrapper. If we pass the credentials to the endpoint URLs 
+the authentication problem gets solved, however, there seems to be another issue either with SPARQL Wrapper
+or with Stardog.
+We get following message: urlopen error [Errno -2] Name or service not known>

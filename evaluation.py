@@ -47,14 +47,16 @@ metadata = ct_ut.MetaData(identifier="simple_query_fhir_eval_20210602143900",
                           creator="Filip Kovacevic",
                           title="Simple FHIR query")
 dir = "FHIR/sample sets/"
+all_new_triples = []
 for filename in os.listdir(dir):
     if filename.startswith("dataset") and filename.endswith("_preprocessed.csv"):
         df = pd.read_csv(dir + filename)
         triples = df.values.tolist()
+        all_new_triples.append(triples)
         time = timeit.timeit(lambda: citation.cite(simple_query_fhir, metadata), number=1)
         print("{0} loops, best of {1}: {2} sec per loop".format(1, 1, time))
         rdf_engine.insert_triples(triples)
-
+rdf_engine._delete_triples(all_new_triples)
 
 # Reset experiment environment and settings
 query_store = qs.QueryStore()
