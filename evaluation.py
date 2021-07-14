@@ -31,12 +31,13 @@ eval_results = pd.DataFrame(columns=['memory', 'time'],
 
 
 # Init versioning
-rdf_engine = rdf.TripleStoreEngine(config.get('GRAPHDB_RDFSTORE_FHIR', 'get'), config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
+rdf_engine = rdf.TripleStoreEngine(config.get('GRAPHDB_RDFSTORE_FHIR', 'get'),
+                                   config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
 rdf_engine.version_all_rows(versioning_mode=VersioningMode.SAVE_MEM)
 
 # FHIR
 simple_query_fhir = open("FHIR/simple_query.txt", "r").read()
-complex_query_fhir = open("FHIR/simple_query.txt", "r").read()
+complex_query_fhir = open("FHIR/complex_query.txt", "r").read()
 
 citation = ct.Citation(config.get('GRAPHDB_RDFSTORE_FHIR', 'get'), config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
 metadata = ct_ut.MetaData(identifier="simple_query_fhir_eval_20210602143900",
@@ -55,6 +56,7 @@ for filename in os.listdir(dir):
         rdf_engine.insert_triples(triples)
 
 
+# Reset experiment environment and settings
 query_store = qs.QueryStore()
 query_store._remove(config.get("QUERY", 'simple_query_fhir_checksum'))
 rdf_engine.reset_all_versions()
