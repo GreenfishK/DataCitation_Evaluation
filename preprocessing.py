@@ -4,7 +4,7 @@ import pandas as pd
 
 def preprocess(dir: str):
     """
-    # Convert triple elements to n3() format and write to datasets.
+    # Convert statements to n3() format and write to datasets.
     # E.g. http://data.ontotext.com/publishing#Mention-dbaa4de4563be5f6b927c87e09f90461c09451296f4b52b1f80dcb6e941a5acd>
     # -->
     # <http://data.ontotext.com/publishing#Mention-dbaa4de4563be5f6b927c87e09f90461c09451296f4b52b1f80dcb6e941a5acd>"

@@ -1,4 +1,5 @@
 # FHIR
+# RDF dataset that was used in this experiment can be retrieved from:
 # URL: https://www.hl7.org/fhir/downloads.html --> RDF --> Definitions
 # * fhir.ttl (classes and predicates)
 # * rim.ttl (Resource information model)

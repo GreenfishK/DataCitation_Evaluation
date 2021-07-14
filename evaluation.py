@@ -1,3 +1,4 @@
+from SPARQLWrapper import SPARQLWrapper, DIGEST, POST
 from rdf_data_citation import citation as ct
 from rdf_data_citation import citation_utils as ct_ut
 from rdf_data_citation import rdf_star as rdf
@@ -6,10 +7,15 @@ from rdf_data_citation import query_store as qs
 import configparser
 import logging
 import timeit
+import resource
+import time
+from memory_profiler import profile
+from memory_profiler import memory_usage
 import csv
 import os
 import pandas as pd
 from rdflib import Literal, URIRef
+
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -30,10 +36,11 @@ eval_results = pd.DataFrame(columns=['memory', 'time'],
                             index=my_index)
 
 
-# Init versioning
+# Init query store and RDF store
+query_store = qs.QueryStore()
 rdf_engine = rdf.TripleStoreEngine(config.get('GRAPHDB_RDFSTORE_FHIR', 'get'),
                                    config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
-rdf_engine.version_all_rows(versioning_mode=VersioningMode.SAVE_MEM)
+
 
 # FHIR
 simple_query_fhir = open("FHIR/simple_query.txt", "r").read()
@@ -46,20 +53,42 @@ metadata = ct_ut.MetaData(identifier="simple_query_fhir_eval_20210602143900",
                           publication_year="2021",
                           creator="Filip Kovacevic",
                           title="Simple FHIR query")
-dir = "FHIR/sample sets/"
-all_new_triples = []
-for filename in os.listdir(dir):
-    if filename.startswith("dataset") and filename.endswith("_preprocessed.csv"):
-        df = pd.read_csv(dir + filename)
-        triples = df.values.tolist()
-        all_new_triples.append(triples)
-        time = timeit.timeit(lambda: citation.cite(simple_query_fhir, metadata), number=1)
-        print("{0} loops, best of {1}: {2} sec per loop".format(1, 1, time))
-        rdf_engine.insert_triples(triples)
-rdf_engine._delete_triples(all_new_triples)
+
+
+def update_triplestore(insert_statement: str):
+    sparql_post = SPARQLWrapper(config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
+    sparql_post.setHTTPAuth(DIGEST)
+    sparql_post.setMethod(POST)
+    sparql_post.setQuery(insert_statement)
+    sparql_post.query()
+
+
+# Evaluation
+print("Start evaluation with parameters: insert, small, mem_sav, simple query, cite_query")
+
+rdf_engine.version_all_rows(versioning_mode=VersioningMode.SAVE_MEM)
+for i in range(1, 11):
+    # Perform action and measure time and memory
+    time_start = time.perf_counter()
+    citation.cite(simple_query_fhir, metadata)
+    time_elapsed = (time.perf_counter() - time_start)
+    memMb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0 / 1024.0
+
+    # Insert new random triples with fixed dataset size (10% of initial superset)
+    insert_random_data = open("FHIR/insert_random_data.txt", "r").read()
+    update_triplestore(insert_random_data)
+
+    # Save evaluation results
+    eval_results.loc[(i, 'insert', 'small', 'mem_sav', 'simple_query', 'cite_query')] = [time_elapsed, memMb]
+
+    # Remove citation from query store
+    query_store._remove(config.get("QUERY", 'simple_query_fhir_checksum'))
+
+# Save evaluation results to csv
+eval_results.to_csv()
 
 # Reset experiment environment and settings
-query_store = qs.QueryStore()
-query_store._remove(config.get("QUERY", 'simple_query_fhir_checksum'))
+delete_random_data = open("FHIR/delete_random_data.txt", "r").read()
+update_triplestore(delete_random_data)
 rdf_engine.reset_all_versions()
 
