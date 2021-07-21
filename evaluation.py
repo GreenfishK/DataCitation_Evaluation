@@ -6,16 +6,9 @@ from rdf_data_citation.rdf_star import VersioningMode
 from rdf_data_citation import query_store as qs
 import configparser
 import logging
-import timeit
-import resource
 import time
-from memory_profiler import profile
-from memory_profiler import memory_usage
-import csv
-import os
 import pandas as pd
-from rdflib import Literal, URIRef
-
+import tracemalloc
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -85,12 +78,14 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     for i in range(1, 11):
         # Perform action and measure time and memory
-        time_start = time.perf_counter()
-        citation.cite(query, metadata)
         # TODO: procedures: 'init_versioning', 're-cite_query', 'retrieve_live_data', 'retrieve_history_data'
-        print(citation.query_utils.checksum)
+        time_start = time.perf_counter()
+        tracemalloc.start()
+        citation.cite(query, metadata)
         time_elapsed = (time.perf_counter() - time_start)
-        memMB = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0 / 1024.0
+        memMB = tracemalloc.get_traced_memory()[1] / 1024.0 / 1024.0  # peak memory
+        print(citation.query_utils.checksum)
+        # memMB = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0 / 1024.0
 
         # Insert or update new random triples with fixed dataset size (10% of initial superset)
         assert write_operation in ["insert", "update"], "Write operation must be either insert or update"
@@ -103,7 +98,8 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         update_triplestore(insert_random_data, post_endpoint)
 
         # Save evaluation results
-        eval_results.loc[(i, 'insert', 'small', 'mem_sav', 'simple_query', 'cite_query')] = [memMB, time_elapsed]
+        eval_results.loc[(i, write_operation, dataset_size, versioning_mode, query_type + "_query",
+                          procedure_to_evaluate)] = [memMB, time_elapsed]
 
         # Remove citation from query store
         if procedure_to_evaluate == "cite_query":
@@ -124,3 +120,6 @@ evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evalu
 # Save evaluation results to csv
 logging.info("Saving evaluation results")
 eval_results.to_csv("evaluation_results.csv")
+
+query_store = qs.QueryStore()
+query_store._remove(config.get("QUERY", "simple_query_fhir_checksum"))

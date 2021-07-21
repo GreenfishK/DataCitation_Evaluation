@@ -5,12 +5,11 @@
 # * rim.ttl (Resource information model)
 # * w5.ttl (classes and predicates)
 # Complex query:
-# Patterns included: Join, Left Join, Union, Filter, Group by + Count, Distinct, Order By, substr, sequence paths
+# Patterns included: Join, Left Join, Union, Filter, Group by + Count, Distinct, Order By, substr, concat, sequence paths
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-# select distinct ?s ?x (concat(substr(str(?y),0,5), substr(str(?y),5,10)) as ?first_ten) (count(?a) as ?cnt_a) (count(?b) as ?cnt_b)
 
-select distinct ?s ?x (substr(str(?y),5,10) as ?first_ten) (count(?a) as ?cnt_a) (count(?b) as ?cnt_b)
+select distinct ?s ?x (concat(substr(str(?y),0,5), substr(str(?y),5,10)) as ?first_ten) (count(?a) as ?cnt_a) (count(?b) as ?cnt_b)
 where {
     {
         ?s rdfs:subClassOf / rdf:type ?x .
@@ -28,4 +27,4 @@ where {
         filter(?s = rdf:XMLLiteral)
     }
 } group by ?s ?x ?y
-order by desc(count(?b))
+order by ?cnt_b ?cnt_a ?s ?x ?first_ten
