@@ -10,12 +10,17 @@ PREFIX citing: <https://github.com/GreenfishK/DataCitation/citing/>
 
 insert {
     ?s ?p ?new_label.
+    <<?s ?p ?new_label>> citing:valid_from ?newVersion.
+    <<?s ?p ?new_label>> citing:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime.
 } where
 {
-    select ?s ?p (concat(str(rand()), "_new_value") as ?new_label)
-    where {
-        ?s ?p ?o .
-        filter (?p = rdfs:label || ?p = dc:title)
+    {
+        select ?s ?p (concat(str(rand()), "_new_value") as ?new_label)
+        where {
+            ?s ?p ?o .
+            filter (?p = rdfs:label || ?p = dc:title)
+        }
+        limit 7418
     }
-    limit 7418
+    BIND(xsd:dateTime(NOW()) AS ?newVersion).
 }

@@ -6,17 +6,12 @@ PREFIX dc: <http://purl.org/dc/elements/1.1/>
 
 insert {
     ?s ?p ?new_label.
-    <<?s ?p ?new_label>> citing:valid_from ?newVersion.
-    <<?s ?p ?new_label>> citing:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime.
 } where
 {
-    {
-        select ?s ?p (concat(str(rand()), "_new_value") as ?new_label)
-        where {
-            ?s ?p ?o .
-            filter (?p = rdfs:label)
-        }
-        limit 137241
+    select ?s ?p (concat(str(rand()), "_new_value") as ?new_label)
+    where {
+        ?s ?p ?o .
+        filter (?p = rdfs:label)
     }
-    BIND(xsd:dateTime(NOW()) AS ?newVersion).
+    limit 137241
 }

@@ -9,6 +9,8 @@ import logging
 import time
 import pandas as pd
 import tracemalloc
+from datetime import datetime, timedelta, timezone
+import tzlocal
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -70,18 +72,34 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
                                        config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
 
     if versioning_mode == "mem_sav":
-        rdf_engine.version_all_rows(versioning_mode=VersioningMode.SAVE_MEM)
+        vers_mode = VersioningMode.SAVE_MEM
     elif versioning_mode == "q_perf":
-        rdf_engine.version_all_rows(versioning_mode=VersioningMode.Q_PERF)
+        vers_mode = VersioningMode.Q_PERF
     else:
         raise Exception("Please set the versioning mode either to mem_sav or q_perf.")
+    if procedure_to_evaluate != 'init_versioning':
+        rdf_engine.version_all_rows(versioning_mode=vers_mode)
+
+    current_datetime = datetime.now()
+    timezone_delta = tzlocal.get_localzone().dst(current_datetime).seconds
+    citation_datetime = datetime.now(timezone(timedelta(seconds=timezone_delta)))
+    citation_timestamp = citation_datetime.strftime("%Y-%m-%dT%H:%M:%S.%f%z")[:-2] + ":" + citation_datetime.strftime("%z")[3:5]
 
     for i in range(1, 11):
         # Perform action and measure time and memory
         # TODO: procedures: 'init_versioning', 're-cite_query', 'retrieve_live_data', 'retrieve_history_data'
+        procs = {'cite_query': [citation.cite, (query, metadata)],
+                 'init_versioning': [rdf_engine.version_all_rows, vers_mode],
+                 're-cite_query': [citation.cite, (query, metadata)],
+                 'retrieve_live_data': [rdf_engine.get_data, query],
+                 'retrieve_history_data': [rdf_engine.get_data, (query, citation_timestamp)]}
         time_start = time.perf_counter()
         tracemalloc.start()
-        citation.cite(query, metadata)
+        ################################################################################################################
+        func = procs[procedure_to_evaluate][0]
+        func_params = procs[procedure_to_evaluate][1]
+        func(*func_params)
+        ################################################################################################################
         time_elapsed = (time.perf_counter() - time_start)
         memMB = tracemalloc.get_traced_memory()[1] / 1024.0 / 1024.0  # peak memory
         print(citation.query_utils.checksum)
@@ -90,9 +108,15 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         # Insert or update new random triples with fixed dataset size (10% of initial superset)
         assert write_operation in ["insert", "update"], "Write operation must be either insert or update"
         if dataset_size == "small":
-            insert_random_data = open("FHIR/{0}_random_data.txt".format(write_operation), "r").read()
+            if procedure_to_evaluate == "init_versioning":
+                insert_random_data = open("FHIR/{0}_random_data.txt".format(write_operation), "r").read()
+            else:
+                insert_random_data = open("FHIR/{0}_timestamped_random_data.txt".format(write_operation), "r").read()
         elif dataset_size == "big":
-            insert_random_data = open("Wikipedia/{0}_random_data.txt".format(write_operation), "r").read()
+            if procedure_to_evaluate == "init_versioning":
+                insert_random_data = open("Wikipedia/{0}_random_data.txt".format(write_operation), "r").read()
+            else:
+                insert_random_data = open("Wikipedia/{0}_timestamped_random_data.txt".format(write_operation), "r").read()
         else:
             raise Exception("Dataset size must either be big or small.")
         update_triplestore(insert_random_data, post_endpoint)
@@ -107,6 +131,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     # Reset experiment environment and settings
     update_triplestore(delete_random_data, post_endpoint)
+    query_store._remove(config.get("QUERY", query_checksum))
     rdf_engine.reset_all_versions()
 
     return eval_results
@@ -121,5 +146,4 @@ evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evalu
 logging.info("Saving evaluation results")
 eval_results.to_csv("evaluation_results.csv")
 
-query_store = qs.QueryStore()
-query_store._remove(config.get("QUERY", "simple_query_fhir_checksum"))
+# TODO: do 100 runs and take the average for each record in evaluation_results.csv
