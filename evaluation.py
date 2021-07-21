@@ -52,24 +52,35 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     logging.info("Start evaluation with parameters: insert, small, mem_sav, simple query, cite_query")
 
     # Init parameters for evaluation
+    procs = {}
     query_store = qs.QueryStore()
-    assert query_type in ["simple", "complex"], "Query must be either simple or complex."
+    assert query_type in ["simple", "complex", "none"], "Query must be either simple, complex or none. " \
+                                                        "Latter should only be used in case of init_versioning"
+
     if dataset_size == "small":
-        citation = ct.Citation(config.get('GRAPHDB_RDFSTORE_FHIR', 'get'), config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
+        get_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'get')
         post_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'post')
-        query = open("FHIR/{0}_query.txt".format(query_type), "r").read()
-        query_checksum = "{0}_query_fhir_checksum".format(query_type)
+        if procedure_to_evaluate != "init_versioning":
+            query = open("FHIR/{0}_query.txt".format(query_type), "r").read()
+            query_checksum = "{0}_query_fhir_checksum".format(query_type)
+        else:
+            query = None
+            query_checksum = None
         delete_random_data = open("FHIR/delete_random_data.txt", "r").read()
     elif dataset_size == "big":
-        citation = ct.Citation(config.get('GRAPHDB_RDFSTORE_WIKI', 'get'), config.get('GRAPHDB_RDFSTORE_WIKI', 'post'))
+        get_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'get')
         post_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'post')
-        query = open("Wikipedia/{0}_query.txt".format(query_type), "r").read()
-        query_checksum = "{0}_query_wiki_checksum".format(query_type)
+        if procedure_to_evaluate != "init_versioning":
+            query = open("Wikipedia/{0}_query.txt".format(query_type), "r").read()
+            query_checksum = "{0}_query_wiki_checksum".format(query_type)
+        else:
+            query = None
+            query_checksum = None
         delete_random_data = open("Wikipedia/delete_random_data.txt", "r").read()
     else:
         raise Exception("Dataset size must either be big or small.")
-    rdf_engine = rdf.TripleStoreEngine(config.get('GRAPHDB_RDFSTORE_FHIR', 'get'),
-                                       config.get('GRAPHDB_RDFSTORE_FHIR', 'post'))
+    rdf_engine = rdf.TripleStoreEngine(get_endpoint, post_endpoint)
+    citation = ct.Citation(get_endpoint, post_endpoint)
 
     if versioning_mode == "mem_sav":
         vers_mode = VersioningMode.SAVE_MEM
@@ -85,14 +96,16 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     citation_datetime = datetime.now(timezone(timedelta(seconds=timezone_delta)))
     citation_timestamp = citation_datetime.strftime("%Y-%m-%dT%H:%M:%S.%f%z")[:-2] + ":" + citation_datetime.strftime("%z")[3:5]
 
+    procs = {'cite_query': [citation.cite, (query, metadata)],
+             'init_versioning': [rdf_engine.version_all_rows, [vers_mode]],
+             're-cite_query': [citation.cite, (query, metadata)],
+             'retrieve_live_data': [rdf_engine.get_data, [query]],
+             'retrieve_history_data': [rdf_engine.get_data, (query, citation_timestamp)]}
+
     for i in range(1, 11):
         # Perform action and measure time and memory
         # TODO: procedures: 'init_versioning', 're-cite_query', 'retrieve_live_data', 'retrieve_history_data'
-        procs = {'cite_query': [citation.cite, (query, metadata)],
-                 'init_versioning': [rdf_engine.version_all_rows, vers_mode],
-                 're-cite_query': [citation.cite, (query, metadata)],
-                 'retrieve_live_data': [rdf_engine.get_data, query],
-                 'retrieve_history_data': [rdf_engine.get_data, (query, citation_timestamp)]}
+
         time_start = time.perf_counter()
         tracemalloc.start()
         ################################################################################################################
@@ -128,19 +141,24 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         # Remove citation from query store
         if procedure_to_evaluate == "cite_query":
             query_store._remove(config.get("QUERY", query_checksum))
+        elif procedure_to_evaluate == "init_versioning":
+            rdf_engine.reset_all_versions()
 
     # Reset experiment environment and settings
     update_triplestore(delete_random_data, post_endpoint)
-    query_store._remove(config.get("QUERY", query_checksum))
+    if procedure_to_evaluate == "cite_query":
+        query_store._remove(config.get("QUERY", query_checksum))
     rdf_engine.reset_all_versions()
 
     return eval_results
 
 
-evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evaluate="cite_query",
+"""evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evaluate="cite_query",
          query_type="simple", dataset_size="small")
 evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evaluate="cite_query",
-         query_type="complex", dataset_size="small")
+         query_type="complex", dataset_size="small")"""
+evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evaluate="init_versioning",
+         query_type="none", dataset_size="small")
 
 # Save evaluation results to csv
 logging.info("Saving evaluation results")

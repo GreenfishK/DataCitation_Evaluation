@@ -12,7 +12,9 @@ delete {
 } where
 {
     ?s ?p ?new_label.
-    <<?s ?p ?new_label>> citing:valid_from ?newVersion.
-    <<?s ?p ?new_label>> citing:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime.
+    optional {
+        <<?s ?p ?new_label>> citing:valid_from ?newVersion.
+        <<?s ?p ?new_label>> citing:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime.
+    }
     filter(strEnds(?new_label, "_new_value"))
 }
