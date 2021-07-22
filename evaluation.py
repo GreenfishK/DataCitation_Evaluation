@@ -52,7 +52,6 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     logging.info("Start evaluation with parameters: insert, small, mem_sav, simple query, cite_query")
 
     # Init parameters for evaluation
-    procs = {}
     query_store = qs.QueryStore()
     assert query_type in ["simple", "complex", "none"], "Query must be either simple, complex or none. " \
                                                         "Latter should only be used in case of init_versioning"
@@ -90,21 +89,17 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         raise Exception("Please set the versioning mode either to mem_sav or q_perf.")
     if procedure_to_evaluate != 'init_versioning':
         rdf_engine.version_all_rows(versioning_mode=vers_mode)
-
-    current_datetime = datetime.now()
-    timezone_delta = tzlocal.get_localzone().dst(current_datetime).seconds
-    citation_datetime = datetime.now(timezone(timedelta(seconds=timezone_delta)))
-    citation_timestamp = citation_datetime.strftime("%Y-%m-%dT%H:%M:%S.%f%z")[:-2] + ":" + citation_datetime.strftime("%z")[3:5]
+    vieTZObject = timezone(timedelta(hours=2))
+    current_datetime = datetime.now(vieTZObject)
 
     procs = {'cite_query': [citation.cite, (query, metadata)],
              'init_versioning': [rdf_engine.version_all_rows, [vers_mode]],
              're-cite_query': [citation.cite, (query, metadata)],
              'retrieve_live_data': [rdf_engine.get_data, [query]],
-             'retrieve_history_data': [rdf_engine.get_data, (query, citation_timestamp)]}
+             'retrieve_history_data': [rdf_engine.get_data, (query, current_datetime)]}
 
     for i in range(1, 11):
         # Perform action and measure time and memory
-        # TODO: procedures: 'init_versioning', 're-cite_query', 'retrieve_live_data', 'retrieve_history_data'
 
         time_start = time.perf_counter()
         tracemalloc.start()
@@ -153,15 +148,17 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     return eval_results
 
 
-"""evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evaluate="cite_query",
-         query_type="simple", dataset_size="small")
-evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evaluate="cite_query",
-         query_type="complex", dataset_size="small")"""
-evaluate(write_operation="insert", versioning_mode="mem_sav", procedure_to_evaluate="init_versioning",
-         query_type="none", dataset_size="small")
+param_sets = [("insert", "small", "mem_sav", "simple", "cite_query")]
+for param_set in param_sets:
+    evaluate(*param_set)
+
+# query_store = qs.QueryStore()
+# query_store._remove(config.get("QUERY", "simple_query_fhir_checksum"))
+# query_store._remove(config.get("QUERY", "complex_query_fhir_checksum"))
 
 # Save evaluation results to csv
 logging.info("Saving evaluation results")
 eval_results.to_csv("evaluation_results.csv")
 
-# TODO: do 100 runs and take the average for each record in evaluation_results.csv
+# TODO: do 10 runs and take the average for each record in evaluation_results.csv
+# TODO: create list of parameters for evaluate() and run them all
