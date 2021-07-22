@@ -24,4 +24,4 @@ where {
         filter(?s = rdf:XMLLiteral)
     }
 } group by ?s ?x ?y
-order by desc(count(?b))
+order by ?cnt_b ?cnt_a ?s ?x ?first_ten

@@ -78,7 +78,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         post_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'post')
         if procedure_to_evaluate != "init_versioning":
             query = open("Wikipedia/{0}.txt".format(query_type), "r").read()
-            query_checksum = "{0}_query_wiki_checksum".format(query_type)
+            query_checksum = "{0}_wiki_checksum".format(query_type)
         else:
             query = None
             query_checksum = None
@@ -159,28 +159,13 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
 param_sets = [set[1:] for set in my_index.tolist()]
 # init_versioning: none, dataset_size, versioning_modes
-print(param_sets)
-#for c, param_set in enumerate(param_sets):
-    #print("Scenario {0} starting".format(c))
-    #evaluate(*param_set)
-
-#evaluate('timestamped_insert', 'small', 'mem_sav', 'simple_query', 'cite_query')
-#evaluate('timestamped_insert', 'small', 'mem_sav', 'complex_query', 'cite_query')
-evaluate('timestamped_insert', 'big', 'mem_sav', 'simple_query', 'cite_query')
-#evaluate('timestamped_insert', 'big', 'mem_sav', 'complex_query', 'cite_query')
-
-query_store = qs.QueryStore()
-query_store._remove(config.get("QUERY", "simple_query_fhir_checksum"))
-query_store._remove(config.get("QUERY", "complex_query_fhir_checksum"))
-query_store._remove(config.get("QUERY", "simple_query_wiki_checksum"))
+for c, param_set in enumerate(param_sets):
+    print("Scenario {0} starting".format(c))
+    evaluate(*param_set)
 
 # Save evaluation results to csv
 logging.info("Saving evaluation results")
 eval_results.to_csv("evaluation_results.csv")
 
-# Reset
-#delete_random_fhir_data = open("FHIR/delete_random_data.txt", "r").read()
-#delete_random_wiki_data = open("Wikipedia/delete_random_data.txt", "r").read()
-
 # TODO: do 10 runs and take the average for each record in evaluation_results.csv
-# TODO: create list of parameters for evaluate() and run them all
+
