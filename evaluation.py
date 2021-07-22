@@ -59,7 +59,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     # Init parameters for evaluation
     query_store = qs.QueryStore()
-    assert query_type in ["simple_query", "complex_query", "none"], "Query must be either simple, complex or none. " \
+    assert query_type in ["simple_query", "complex_query", "no_query"], "Query must be either simple, complex or none. " \
                                                                     "Latter should only be used in case of init_versioning"
 
     if dataset_size == "small":
@@ -69,7 +69,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
             query = open("FHIR/{0}.txt".format(query_type), "r").read()
             query_checksum = "{0}_fhir_checksum".format(query_type)
         else:
-            query = None
+            query = "no_query"
             query_checksum = None
         init_insert_random_data = open("FHIR/insert_random_data.txt", "r").read()
         delete_random_data = open("FHIR/delete_random_data.txt", "r").read()
@@ -80,7 +80,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
             query = open("Wikipedia/{0}.txt".format(query_type), "r").read()
             query_checksum = "{0}_wiki_checksum".format(query_type)
         else:
-            query = None
+            query = "no_query"
             query_checksum = None
         init_insert_random_data = open("Wikipedia/insert_random_data.txt", "r").read()
         delete_random_data = open("Wikipedia/delete_random_data.txt", "r").read()
