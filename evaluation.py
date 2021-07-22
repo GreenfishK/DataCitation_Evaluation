@@ -12,21 +12,27 @@ import tracemalloc
 from datetime import datetime, timedelta, timezone
 import tzlocal
 
+# Read config parameters such as query checksums of the evaluation queries and rdf store endpoints
 config = configparser.ConfigParser()
 config.read('config.ini')
 logging.getLogger().setLevel(int(config.get('LOGGING', 'level')))
 
 # Setup evaluation results table
-write_operations = ['insert', 'update']
+write_operations = ['timestamped_insert', 'timestamped_update']
 dataset_sizes = ['small', 'big']
 versioning_modes = ['q_perf', 'mem_sav']
 query_types = ['simple_query', 'complex_query']
-procedures_to_evaluate = ['init_versioning', 'cite_query', 're-cite_query', 'retrieve_live_data', 'retrieve_history_data']
-rounds = list(range(1, 11))
-my_index = pd.MultiIndex.from_product(iterables=[rounds, write_operations, dataset_sizes, versioning_modes,
+procedures_to_evaluate = ['cite_query', 're-cite_query', 'retrieve_live_data', 'retrieve_history_data']
+increments = list(range(1, 11))
+my_index_1 = pd.MultiIndex.from_product(iterables=[increments, write_operations, dataset_sizes, versioning_modes,
                                                  query_types, procedures_to_evaluate],
-                                      names=['round', 'write_operation', 'dataset', 'versioning_mode', 'query_type',
-                                             'procedure_to_evaluate'])
+                                        names=['Increment', 'write_operation', 'dataset_size', 'versioning_mode',
+                                               'query_type', 'procedure_to_evaluate'])
+my_index_2 = pd.MultiIndex.from_product(iterables=[increments, ['insert'], dataset_sizes, versioning_modes,
+                                                   ['no_query'], ['init_versioning']],
+                                        names=['Increment', 'write_operation', 'dataset_size', 'versioning_mode',
+                                               'query_type', 'procedure_to_evaluate'])
+my_index = my_index_1.union(my_index_2)
 eval_results = pd.DataFrame(columns=['memory_in_MB', 'time_in_seconds'],
                             index=my_index)
 
@@ -53,34 +59,41 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     # Init parameters for evaluation
     query_store = qs.QueryStore()
-    assert query_type in ["simple", "complex", "none"], "Query must be either simple, complex or none. " \
-                                                        "Latter should only be used in case of init_versioning"
+    assert query_type in ["simple_query", "complex_query", "none"], "Query must be either simple, complex or none. " \
+                                                                    "Latter should only be used in case of init_versioning"
 
     if dataset_size == "small":
         get_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'get')
         post_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'post')
         if procedure_to_evaluate != "init_versioning":
-            query = open("FHIR/{0}_query.txt".format(query_type), "r").read()
-            query_checksum = "{0}_query_fhir_checksum".format(query_type)
+            query = open("FHIR/{0}.txt".format(query_type), "r").read()
+            query_checksum = "{0}_fhir_checksum".format(query_type)
         else:
             query = None
             query_checksum = None
+        init_insert_random_data = open("FHIR/insert_random_data.txt", "r").read()
         delete_random_data = open("FHIR/delete_random_data.txt", "r").read()
     elif dataset_size == "big":
         get_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'get')
         post_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'post')
         if procedure_to_evaluate != "init_versioning":
-            query = open("Wikipedia/{0}_query.txt".format(query_type), "r").read()
+            query = open("Wikipedia/{0}.txt".format(query_type), "r").read()
             query_checksum = "{0}_query_wiki_checksum".format(query_type)
         else:
             query = None
             query_checksum = None
+        init_insert_random_data = open("Wikipedia/insert_random_data.txt", "r").read()
         delete_random_data = open("Wikipedia/delete_random_data.txt", "r").read()
     else:
         raise Exception("Dataset size must either be big or small.")
     rdf_engine = rdf.TripleStoreEngine(get_endpoint, post_endpoint)
     citation = ct.Citation(get_endpoint, post_endpoint)
 
+    # initial insert of random values labeled with the suffix _new_value. These are used as a starting point for
+    # the update operation. These values are updated with new random values on each increment.
+    update_triplestore(init_insert_random_data, post_endpoint)
+
+    # Initial versioning
     if versioning_mode == "mem_sav":
         vers_mode = VersioningMode.SAVE_MEM
     elif versioning_mode == "q_perf":
@@ -89,9 +102,10 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         raise Exception("Please set the versioning mode either to mem_sav or q_perf.")
     if procedure_to_evaluate != 'init_versioning':
         rdf_engine.version_all_rows(versioning_mode=vers_mode)
+
+    # Procedures to evaluate and parameters
     vieTZObject = timezone(timedelta(hours=2))
     current_datetime = datetime.now(vieTZObject)
-
     procs = {'cite_query': [citation.cite, (query, metadata)],
              'init_versioning': [rdf_engine.version_all_rows, [vers_mode]],
              're-cite_query': [citation.cite, (query, metadata)],
@@ -114,23 +128,18 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         # memMB = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0 / 1024.0
 
         # Insert or update new random triples with fixed dataset size (10% of initial superset)
-        assert write_operation in ["insert", "update"], "Write operation must be either insert or update"
+        assert write_operation in ["insert", "timestamped_insert", "timestamped_update"], \
+            "Write operation must be either insert, timestamped_insert or timestamped_update"
         if dataset_size == "small":
-            if procedure_to_evaluate == "init_versioning":
-                insert_random_data = open("FHIR/{0}_random_data.txt".format(write_operation), "r").read()
-            else:
-                insert_random_data = open("FHIR/{0}_timestamped_random_data.txt".format(write_operation), "r").read()
+            insert_random_data = open("FHIR/{0}_random_data.txt".format(write_operation), "r").read()
         elif dataset_size == "big":
-            if procedure_to_evaluate == "init_versioning":
-                insert_random_data = open("Wikipedia/{0}_random_data.txt".format(write_operation), "r").read()
-            else:
-                insert_random_data = open("Wikipedia/{0}_timestamped_random_data.txt".format(write_operation), "r").read()
+            insert_random_data = open("Wikipedia/{0}_random_data.txt".format(write_operation), "r").read()
         else:
             raise Exception("Dataset size must either be big or small.")
         update_triplestore(insert_random_data, post_endpoint)
 
         # Save evaluation results
-        eval_results.loc[(i, write_operation, dataset_size, versioning_mode, query_type + "_query",
+        eval_results.loc[(i, write_operation, dataset_size, versioning_mode, query_type,
                           procedure_to_evaluate)] = [memMB, time_elapsed]
 
         # Remove citation from query store
@@ -148,17 +157,30 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     return eval_results
 
 
-param_sets = [("insert", "small", "mem_sav", "simple", "cite_query")]
-for param_set in param_sets:
-    evaluate(*param_set)
+param_sets = [set[1:] for set in my_index.tolist()]
+# init_versioning: none, dataset_size, versioning_modes
+print(param_sets)
+#for c, param_set in enumerate(param_sets):
+    #print("Scenario {0} starting".format(c))
+    #evaluate(*param_set)
 
-# query_store = qs.QueryStore()
-# query_store._remove(config.get("QUERY", "simple_query_fhir_checksum"))
-# query_store._remove(config.get("QUERY", "complex_query_fhir_checksum"))
+#evaluate('timestamped_insert', 'small', 'mem_sav', 'simple_query', 'cite_query')
+#evaluate('timestamped_insert', 'small', 'mem_sav', 'complex_query', 'cite_query')
+evaluate('timestamped_insert', 'big', 'mem_sav', 'simple_query', 'cite_query')
+#evaluate('timestamped_insert', 'big', 'mem_sav', 'complex_query', 'cite_query')
+
+query_store = qs.QueryStore()
+query_store._remove(config.get("QUERY", "simple_query_fhir_checksum"))
+query_store._remove(config.get("QUERY", "complex_query_fhir_checksum"))
+query_store._remove(config.get("QUERY", "simple_query_wiki_checksum"))
 
 # Save evaluation results to csv
 logging.info("Saving evaluation results")
 eval_results.to_csv("evaluation_results.csv")
+
+# Reset
+#delete_random_fhir_data = open("FHIR/delete_random_data.txt", "r").read()
+#delete_random_wiki_data = open("Wikipedia/delete_random_data.txt", "r").read()
 
 # TODO: do 10 runs and take the average for each record in evaluation_results.csv
 # TODO: create list of parameters for evaluate() and run them all
