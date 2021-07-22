@@ -55,7 +55,9 @@ def update_triplestore(insert_statement: str, endpoint):
 
 def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, query_type: str, procedure_to_evaluate: str):
     # Evaluation
-    logging.info("Start evaluation with parameters: insert, small, mem_sav, simple query, cite_query")
+    logging.info("Start evaluation with parameters: {0}, {1}, {2}, {3}, {4}".format(write_operation, dataset_size,
+                                                                                    versioning_mode, query_type,
+                                                                                    procedure_to_evaluate))
 
     # Init parameters for evaluation
     query_store = qs.QueryStore()
