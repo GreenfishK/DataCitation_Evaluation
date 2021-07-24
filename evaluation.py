@@ -153,8 +153,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     # Reset experiment environment and settings
     update_triplestore(delete_random_data, post_endpoint)
-    if procedure_to_evaluate == "cite_query":
-        query_store._remove(config.get("QUERY", query_checksum))
+    query_store._remove(config.get("QUERY", query_checksum))
     rdf_engine.reset_all_versions()
 
 
@@ -162,8 +161,9 @@ param_sets = set([set[:5] for set in my_index.tolist()])
 
 # init_versioning: none, dataset_size, versioning_modes
 for c, param_set in enumerate(param_sets):
-    print("Scenario {0} starting".format(c))
+    logging.info("Scenario {0} starting".format(c))
     evaluate(*param_set)
+
 
 # Save evaluation results to csv
 logging.info("Saving evaluation results")
