@@ -24,14 +24,14 @@ versioning_modes = ['q_perf', 'mem_sav']
 query_types = ['simple_query', 'complex_query']
 procedures_to_evaluate = ['cite_query', 're-cite_query', 'retrieve_live_data', 'retrieve_history_data']
 increments = list(range(1, 11))
-my_index_1 = pd.MultiIndex.from_product(iterables=[increments, write_operations, dataset_sizes, versioning_modes,
-                                                 query_types, procedures_to_evaluate],
-                                        names=['Increment', 'write_operation', 'dataset_size', 'versioning_mode',
-                                               'query_type', 'procedure_to_evaluate'])
-my_index_2 = pd.MultiIndex.from_product(iterables=[increments, ['insert'], dataset_sizes, versioning_modes,
-                                                   ['no_query'], ['init_versioning']],
-                                        names=['Increment', 'write_operation', 'dataset_size', 'versioning_mode',
-                                               'query_type', 'procedure_to_evaluate'])
+my_index_1 = pd.MultiIndex.from_product(iterables=[write_operations, dataset_sizes, versioning_modes,
+                                                   query_types, procedures_to_evaluate, increments],
+                                        names=['write_operation', 'dataset_size', 'versioning_mode',
+                                               'query_type', 'procedure_to_evaluate', 'Increment'])
+my_index_2 = pd.MultiIndex.from_product(iterables=[['insert'], dataset_sizes, versioning_modes,
+                                                   ['no_query'], ['init_versioning'], increments],
+                                        names=['write_operation', 'dataset_size', 'versioning_mode',
+                                               'query_type', 'procedure_to_evaluate', 'Increment'])
 my_index = my_index_1.union(my_index_2)
 eval_results = pd.DataFrame(columns=['memory_in_MB', 'time_in_seconds'],
                             index=my_index)
@@ -96,18 +96,20 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     update_triplestore(init_insert_random_data, post_endpoint)
 
     # Initial versioning
+    vieTZObject = timezone(timedelta(hours=2))
+    current_datetime = datetime.now(vieTZObject)
     if versioning_mode == "mem_sav":
         vers_mode = VersioningMode.SAVE_MEM
+        init_timestamp = None
     elif versioning_mode == "q_perf":
         vers_mode = VersioningMode.Q_PERF
+        init_timestamp = current_datetime
     else:
         raise Exception("Please set the versioning mode either to mem_sav or q_perf.")
     if procedure_to_evaluate != 'init_versioning':
-        rdf_engine.version_all_rows(versioning_mode=vers_mode)
+        rdf_engine.version_all_rows(versioning_mode=vers_mode, initial_timestamp=init_timestamp)
 
     # Procedures to evaluate and parameters
-    vieTZObject = timezone(timedelta(hours=2))
-    current_datetime = datetime.now(vieTZObject)
     procs = {'cite_query': [citation.cite, (query, metadata)],
              'init_versioning': [rdf_engine.version_all_rows, [vers_mode]],
              're-cite_query': [citation.cite, (query, metadata)],
@@ -126,7 +128,6 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         ################################################################################################################
         time_elapsed = (time.perf_counter() - time_start)
         memMB = tracemalloc.get_traced_memory()[1] / 1024.0 / 1024.0  # peak memory
-        print(citation.query_utils.checksum)
         # memMB = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0 / 1024.0
 
         # Insert or update new random triples with fixed dataset size (10% of initial superset)
@@ -141,8 +142,8 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         update_triplestore(insert_random_data, post_endpoint)
 
         # Save evaluation results
-        eval_results.loc[(i, write_operation, dataset_size, versioning_mode, query_type,
-                          procedure_to_evaluate)] = [memMB, time_elapsed]
+        eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type,
+                          procedure_to_evaluate, i)] = [memMB, time_elapsed]
 
         # Remove citation from query store
         if procedure_to_evaluate == "cite_query":
@@ -156,10 +157,9 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         query_store._remove(config.get("QUERY", query_checksum))
     rdf_engine.reset_all_versions()
 
-    return eval_results
 
+param_sets = set([set[:5] for set in my_index.tolist()])
 
-param_sets = [set[1:] for set in my_index.tolist()]
 # init_versioning: none, dataset_size, versioning_modes
 for c, param_set in enumerate(param_sets):
     print("Scenario {0} starting".format(c))
