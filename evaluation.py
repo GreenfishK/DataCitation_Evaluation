@@ -11,6 +11,7 @@ import pandas as pd
 import tracemalloc
 from datetime import datetime, timedelta, timezone
 import tzlocal
+import gc
 
 # Read config parameters such as query checksums of the evaluation queries and rdf store endpoints
 config = configparser.ConfigParser()
@@ -60,7 +61,6 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
                                                                                     procedure_to_evaluate))
 
     # Init parameters for evaluation
-    query_store = qs.QueryStore()
     assert query_type in ["simple_query", "complex_query", "no_query"], "Query must be either simple, complex or none. " \
                                                                     "Latter should only be used in case of init_versioning"
 
@@ -88,8 +88,11 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         delete_random_data = open("Wikipedia/delete_random_data.txt", "r").read()
     else:
         raise Exception("Dataset size must either be big or small.")
+    tracemalloc.start()
+    query_store = qs.QueryStore()
     rdf_engine = rdf.TripleStoreEngine(get_endpoint, post_endpoint)
     citation = ct.Citation(get_endpoint, post_endpoint)
+    mem_in_MB_instances = tracemalloc.get_traced_memory()[1] / 1024.0 / 1024.0  # peak memory
 
     # initial insert of random values labeled with the suffix _new_value. These are used as a starting point for
     # the update operation. These values are updated with new random values on each increment.
@@ -128,7 +131,6 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         ################################################################################################################
         time_elapsed = (time.perf_counter() - time_start)
         memMB = tracemalloc.get_traced_memory()[1] / 1024.0 / 1024.0  # peak memory
-        # memMB = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0 / 1024.0
 
         # Insert or update new random triples with fixed dataset size (10% of initial superset)
         assert write_operation in ["insert", "timestamped_insert", "timestamped_update"], \
@@ -142,8 +144,15 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         update_triplestore(insert_random_data, post_endpoint)
 
         # Save evaluation results
-        eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type,
-                          procedure_to_evaluate, i)] = [memMB, time_elapsed]
+        # eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type,
+        #                   procedure_to_evaluate, i)] = [memMB, time_elapsed]
+        evaluation_results = open("evaluation_results3.csv", "a")
+        evaluation_results.write("{0};{1};{2};{3};{4};{5};{6};{7};{8}\n".format(write_operation, dataset_size,
+                                                                                versioning_mode, query_type,
+                                                                                procedure_to_evaluate, i,
+                                                                                memMB, time_elapsed,
+                                                                                mem_in_MB_instances))
+        evaluation_results.close()
 
         # Remove citation from query store
         if procedure_to_evaluate == "cite_query":
@@ -153,21 +162,95 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     # Reset experiment environment and settings
     update_triplestore(delete_random_data, post_endpoint)
-    query_store._remove(config.get("QUERY", query_checksum))
+    if procedure_to_evaluate != "init_versioning":
+        query_store._remove(config.get("QUERY", query_checksum))
     rdf_engine.reset_all_versions()
+    gc.collect() # to prevent heap overflow
 
 
 param_sets = set([set[:5] for set in my_index.tolist()])
 
 # init_versioning: none, dataset_size, versioning_modes
-for c, param_set in enumerate(param_sets):
-    logging.info("Scenario {0} starting".format(c))
-    evaluate(*param_set)
+#for c, param_set in enumerate(param_sets):
+    #logging.info("Scenario {0} starting".format(c))
+    #evaluate(*param_set)
 
+evaluate("timestamped_update", "big", "q_perf", "complex_query", "re-cite_query")
+evaluate("timestamped_update", "big", "mem_sav", "complex_query", "re-cite_query")
+evaluate("timestamped_update", "big", "q_perf", "simple_query", "re-cite_query")
+evaluate("timestamped_update", "big", "mem_sav", "simple_query", "re-cite_query")
+evaluate("timestamped_update", "big", "q_perf", "complex_query", "cite_query")
+evaluate("timestamped_update", "big", "mem_sav", "complex_query", "cite_query")
+evaluate("timestamped_update", "big", "q_perf", "simple_query", "cite_query")
+evaluate("timestamped_update", "big", "mem_sav", "simple_query", "cite_query")
+evaluate("timestamped_update", "big", "q_perf", "complex_query", "retrieve_live_data")
+evaluate("timestamped_update", "big", "mem_sav", "complex_query", "retrieve_live_data")
+evaluate("timestamped_update", "big", "q_perf", "simple_query", "retrieve_live_data")
+evaluate("timestamped_update", "big", "mem_sav", "simple_query", "retrieve_live_data")
+evaluate("timestamped_update", "big", "q_perf", "complex_query", "retrieve_history_data")
+evaluate("timestamped_update", "big", "mem_sav", "complex_query", "retrieve_history_data") # re-run
+evaluate("timestamped_update", "big", "q_perf", "simple_query", "retrieve_history_data") # run on 26.07.2021
+evaluate("timestamped_update", "big", "mem_sav", "simple_query", "retrieve_history_data") # run on 26.07.2021
+
+evaluate("timestamped_insert", "big", "q_perf", "complex_query", "re-cite_query")
+evaluate("timestamped_insert", "big", "mem_sav", "complex_query", "re-cite_query")
+evaluate("timestamped_insert", "big", "q_perf", "simple_query", "re-cite_query")
+evaluate("timestamped_insert", "big", "mem_sav", "simple_query", "re-cite_query")
+evaluate("timestamped_insert", "big", "q_perf", "complex_query", "cite_query")
+evaluate("timestamped_insert", "big", "mem_sav", "complex_query", "cite_query")
+evaluate("timestamped_insert", "big", "q_perf", "simple_query", "cite_query")
+evaluate("timestamped_insert", "big", "mem_sav", "simple_query", "cite_query")
+evaluate("timestamped_insert", "big", "q_perf", "complex_query", "retrieve_live_data")
+evaluate("timestamped_insert", "big", "mem_sav", "complex_query", "retrieve_live_data")
+evaluate("timestamped_insert", "big", "q_perf", "simple_query", "retrieve_live_data")
+evaluate("timestamped_insert", "big", "mem_sav", "simple_query", "retrieve_live_data")
+evaluate("timestamped_insert", "big", "q_perf", "complex_query", "retrieve_history_data")
+evaluate("timestamped_insert", "big", "mem_sav", "complex_query", "retrieve_history_data")
+evaluate("timestamped_insert", "big", "q_perf", "simple_query", "retrieve_history_data")
+evaluate("timestamped_insert", "big", "mem_sav", "simple_query", "retrieve_history_data")
+
+evaluate("timestamped_update", "small", "q_perf", "complex_query", "re-cite_query")
+evaluate("timestamped_update", "small", "mem_sav", "complex_query", "re-cite_query")
+evaluate("timestamped_update", "small", "q_perf", "simple_query", "re-cite_query")
+evaluate("timestamped_update", "small", "mem_sav", "simple_query", "re-cite_query")
+evaluate("timestamped_update", "small", "q_perf", "complex_query", "cite_query")
+evaluate("timestamped_update", "small", "mem_sav", "complex_query", "cite_query") # re-run
+evaluate("timestamped_update", "small", "q_perf", "simple_query", "cite_query")
+evaluate("timestamped_update", "small", "mem_sav", "simple_query", "cite_query")
+evaluate("timestamped_update", "small", "q_perf", "complex_query", "retrieve_live_data")
+evaluate("timestamped_update", "small", "mem_sav", "complex_query", "retrieve_live_data")
+evaluate("timestamped_update", "small", "q_perf", "simple_query", "retrieve_live_data")
+evaluate("timestamped_update", "small", "mem_sav", "simple_query", "retrieve_live_data")
+evaluate("timestamped_update", "small", "q_perf", "complex_query", "retrieve_history_data")
+evaluate("timestamped_update", "small", "mem_sav", "complex_query", "retrieve_history_data")
+evaluate("timestamped_update", "small", "q_perf", "simple_query", "retrieve_history_data")
+evaluate("timestamped_update", "small", "mem_sav", "simple_query", "retrieve_history_data")
+
+evaluate("timestamped_insert", "small", "q_perf", "complex_query", "re-cite_query")
+evaluate("timestamped_insert", "small", "mem_sav", "complex_query", "re-cite_query")
+evaluate("timestamped_insert", "small", "q_perf", "simple_query", "re-cite_query")
+evaluate("timestamped_insert", "small", "mem_sav", "simple_query", "re-cite_query")
+evaluate("timestamped_insert", "small", "q_perf", "complex_query", "cite_query")
+evaluate("timestamped_insert", "small", "mem_sav", "complex_query", "cite_query")
+evaluate("timestamped_insert", "small", "q_perf", "simple_query", "cite_query")
+evaluate("timestamped_insert", "small", "mem_sav", "simple_query", "cite_query")
+evaluate("timestamped_insert", "small", "q_perf", "complex_query", "retrieve_live_data")
+evaluate("timestamped_insert", "small", "mem_sav", "complex_query", "retrieve_live_data")
+evaluate("timestamped_insert", "small", "q_perf", "simple_query", "retrieve_live_data")
+evaluate("timestamped_insert", "small", "mem_sav", "simple_query", "retrieve_live_data")
+evaluate("timestamped_insert", "small", "q_perf", "complex_query", "retrieve_history_data")
+evaluate("timestamped_insert", "small", "mem_sav", "complex_query", "retrieve_history_data")
+evaluate("timestamped_insert", "small", "q_perf", "simple_query", "retrieve_history_data")
+evaluate("timestamped_insert", "small", "mem_sav", "simple_query", "retrieve_history_data")
+
+evaluate("insert", "big", "q_perf", "no_query", "init_versioning")  # run on 26.07.2021
+evaluate("insert", "big", "mem_sav", "no_query", "init_versioning")  # run on 26.07.2021
+evaluate("insert", "small", "q_perf", "no_query", "init_versioning")  # run on 26.07.2021
+evaluate("insert", "small", "mem_sav", "no_query", "init_versioning")  # run on 26.07.2021"""
 
 # Save evaluation results to csv
-logging.info("Saving evaluation results")
-eval_results.to_csv("evaluation_results.csv")
+# logging.info("Saving evaluation results")
+# eval_results.to_csv("evaluation_results.csv")
 
 # TODO: do 10 runs and take the average for each record in evaluation_results.csv
-
+# TODO: fix scenario: insert, big, mem_sav, no_query, init_versioning
