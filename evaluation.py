@@ -38,7 +38,7 @@ my_index_2 = pd.MultiIndex.from_product(iterables=[['insert'], dataset_sizes, ve
                                         names=['write_operation', 'dataset_size', 'versioning_mode',
                                                'query_type', 'procedure_to_evaluate', 'Increment'])
 my_index = my_index_1.union(my_index_2)
-eval_results = pd.DataFrame(columns=['memory_in_MB', 'time_in_seconds'],
+eval_results = pd.DataFrame(columns=['memory_in_MB', 'Memory_in_MB_instances', 'time_in_seconds', 'cnt_triples'],
                             index=my_index)
 
 # init metadata
@@ -169,7 +169,6 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     for i in range(1, 11):
         # Perform action and measure time and memory
-
         time_start = time.perf_counter()
         tracemalloc.start()
         ################################################################################################################
@@ -194,15 +193,16 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         update_triplestore(insert_random_data, post_endpoint)
 
         # Save evaluation results
-        # eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type,
-        #                   procedure_to_evaluate, i)] = [memMB, time_elapsed]
-        evaluation_results = open(output_file, "a")
+        eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type,
+                           procedure_to_evaluate, i)] = [memMB, mem_in_MB_instances, time_elapsed, cnt_trpls]
+        eval_results.to_csv(output_file, sep=";")
+        """evaluation_results = open(output_file, "a")
         evaluation_results.write("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9}\n".format(write_operation, dataset_size,
                                                                                 versioning_mode, query_type,
                                                                                 procedure_to_evaluate, i,
                                                                                 memMB, time_elapsed,
                                                                                 mem_in_MB_instances, cnt_trpls))
-        evaluation_results.close()
+        evaluation_results.close()"""
 
         # Remove citation from query store
         if procedure_to_evaluate == "cite_query":
@@ -217,19 +217,20 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 param_sets = set([set[:5] for set in my_index.tolist()])
 
 # init_versioning: none, dataset_size, versioning_modes
-"""for c, param_set in enumerate(param_sets):
+for c, param_set in enumerate(param_sets):
     logging.info("Scenario {0} starting".format(c))
+
     try:
-        evaluate(*param_set, "evaluation_results6.csv")
+        evaluate(*param_set, "evaluation_results_v20210809_3.csv")
     except Exception as e:
         reset_experiment(current_eval_params['procedure_to_evaluate'], current_eval_params['get_endpoint'],
                          current_eval_params['post_endpoint'], current_eval_params['query_checksum'])
 
         continue
-"""
+
 
 # Use to run single scenarios which failed because of a heap overflow in GraphDB
-evaluate("timestamped_update", "big", "q_perf", "complex_query", "re-cite_query", "evaluation_results6.csv")
+# evaluate("timestamped_update", "big", "q_perf", "complex_query", "re-cite_query", "evaluation_results6.csv")
 
 
 
