@@ -57,7 +57,12 @@ No authentication is required and both - read and write - statements are possibl
 endpoints. 
 
 ## GraphDB
+Start graphdb-free:
 
+    export GRAPHDB_HOME=/opt/graphdb-free
+    $GRAPHDB_HOME/graphdb-free -s
+Server mode only (without workbench) is not available for graphdb-free. When running the command with -s parameter 
+it still starts the workbench.
 ## Stardog
 Sign up for stardog to get the license-key: https://www.stardog.com/get-started/  
 To run stardog on linux follow section "1. Download and Install Stardog" on: https://www.stardog.com/blog/a-stardog-app-in-5-easy-steps  
