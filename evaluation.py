@@ -215,46 +215,43 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     reset_experiment(procedure_to_evaluate, get_endpoint, post_endpoint, query_checksum)
 
 
-# Start graphdb-free
-logging.info("Starting graphdb-free ...")
-start_process = subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'],
-                                 shell=True, stdin=None, stdout=None, stderr=None, close_fds=True)
-time.sleep(15)
+# Run evaluation 10 times
+for i in range(10):
+    logging.info("Starting run {0}".format(i))
 
-param_sets = set([set[:5] for set in my_index.tolist()])
-for c, param_set in enumerate(param_sets):
+    # Start graphdb-free
+    logging.info("Starting graphdb-free ...")
+    subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
+                     stderr=None, close_fds=True)
+    time.sleep(15)
 
-    # Restart graphdb-free every 17th scenario
-    if (c+1) % (len(param_sets)/2) == 0:
-        # kill graphdb-free
-        kill_process = subprocess.Popen(['killall', '-9', 'graphdb-free'],
-                                        stdout=subprocess.PIPE,
-                                        universal_newlines=True)
-        start_process.kill()
-        logging.info("Closed graph-db free")
+    param_sets = set([set[:5] for set in my_index.tolist()])
+    for c, param_set in enumerate(param_sets):
 
-        # start graphdb-free
-        start_process = subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'],
-                                         shell=True, stdin=None, stdout=None, stderr=None, close_fds=True)
-        time.sleep(15)
-        logging.info("Started graph-db free")
+        # Restart graphdb-free every 17th scenario
+        if (c+1) % (len(param_sets)/8) == 0:
+            # kill graphdb-free
+            subprocess.Popen(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
+            logging.info("Closed graph-db free")
 
-    logging.info("Scenario {0} starting".format(c))
-    try:
-        pass
-        # evaluate(*param_set, "evaluation_results_v20210811_2.csv")
-    except Exception as e:
-        reset_experiment(current_eval_params['procedure_to_evaluate'], current_eval_params['get_endpoint'],
-                         current_eval_params['post_endpoint'], current_eval_params['query_checksum'])
+            # start graphdb-free
+            subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
+                             stderr=None, close_fds=True)
+            time.sleep(15)
+            logging.info("Started graph-db free")
 
-        continue
+        logging.info("Scenario {0} starting".format(c))
+        try:
+            evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i))
+        except Exception as e:
+            reset_experiment(current_eval_params['procedure_to_evaluate'], current_eval_params['get_endpoint'],
+                             current_eval_params['post_endpoint'], current_eval_params['query_checksum'])
 
-# Close graphdb-free
-start_process.kill()
+            continue
+
+    # Close graphdb-free
+    subprocess.Popen(['killall', '-9', 'graphdb-free'],stdout=subprocess.PIPE, universal_newlines=True)
+    logging.info("Closed graph-db free")
 
 # Use to run single scenarios which failed because of a heap overflow in GraphDB
 # evaluate("timestamped_update", "big", "q_perf", "complex_query", "re-cite_query", "evaluation_results6.csv")
-
-
-# TODO: do 10 runs and take the average for each record in evaluation_results.csv
-# TODO: fix scenario: insert, big, mem_sav, no_query, init_versioning
