@@ -25,7 +25,7 @@ write_operations = ['timestamped_insert', 'timestamped_update']
 dataset_sizes = ['small', 'big']
 versioning_modes = ['q_perf', 'mem_sav']
 query_types = ['simple_query', 'complex_query']
-procedures_to_evaluate = ['cite_query', 're-cite_query', 'retrieve_live_data', 'retrieve_history_data']
+procedures_to_evaluate = ['mint_query_pid', 're-execute_query', 'retrieve_live_data', 'retrieve_history_data']
 increments = list(range(1, 11))
 my_index_1 = pd.MultiIndex.from_product(iterables=[write_operations, dataset_sizes, versioning_modes,
                                                    query_types, procedures_to_evaluate, increments],
@@ -209,11 +209,10 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     if procedure_to_evaluate != 'init_versioning':
         rdf_engine.version_all_rows(versioning_mode=vers_mode, initial_timestamp=init_timestamp)
 
-    # TODO 20210812: Change cite_query --> mint_query_pid and re-cite_query --> re-execute_existing_query
     # Procedures to evaluate and parameters
-    procs = {'cite_query': [citation.mint_query_pid, (query, metadata)],
+    procs = {'mint_query_pid': [citation.mint_query_pid, (query, metadata)],
              'init_versioning': [rdf_engine.version_all_rows, [vers_mode]],
-             're-cite_query': [citation.mint_query_pid, (query, metadata)],
+             're-execute_query': [citation.mint_query_pid, (query, metadata)],
              'retrieve_live_data': [rdf_engine.get_data, [query]],
              'retrieve_history_data': [rdf_engine.get_data, (query, current_datetime)]}
 
@@ -248,7 +247,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         eval_results.to_csv(output_file, sep=";")
 
         # Remove citation from query store
-        if procedure_to_evaluate == "cite_query":
+        if procedure_to_evaluate == "mint_query_pid":
             query_store._remove(config.get("QUERY", query_checksum))
         elif procedure_to_evaluate == "init_versioning":
             rdf_engine.reset_all_versions()
@@ -272,8 +271,10 @@ for i in range(10):
     param_sets = set([set[:5] for set in my_index.tolist()])
     for c, param_set in enumerate(param_sets):
         logging.info("Scenario {0} starting".format(c))
-        evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i))
-
+        try:
+            evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i))
+        except Exception as e:
+            delete_repos()
         # Re-create repositories to reset the Java Heap
         if (c+1) % 8 == 0:
             create_repos_with_data()
@@ -284,5 +285,3 @@ subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, unive
 logging.info("Closed graph-db free")
 logging.info("Evaluation finished")
 
-# Use to run single scenarios which failed because of a heap overflow in GraphDB
-# evaluate("timestamped_update", "big", "q_perf", "complex_query", "re-cite_query", "evaluation_results6.csv")
