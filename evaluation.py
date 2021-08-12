@@ -4,8 +4,8 @@ import subprocess
 import rdf_data_citation.rdf_star
 from SPARQLWrapper import SPARQLWrapper, DIGEST, POST, GET, JSON
 from SPARQLWrapper.Wrapper import QueryResult
-from rdf_data_citation import citation as ct
-from rdf_data_citation import citation_utils as ct_ut
+from rdf_data_citation import query_handler as ct
+from rdf_data_citation import persistent_id_utils as ct_ut
 from rdf_data_citation import rdf_star as rdf
 from rdf_data_citation.rdf_star import VersioningMode
 from rdf_data_citation import query_store as qs
@@ -140,7 +140,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     tracemalloc.start()
     query_store = qs.QueryStore()
     rdf_engine = rdf.TripleStoreEngine(get_endpoint, post_endpoint)
-    citation = ct.Citation(get_endpoint, post_endpoint)
+    citation = ct.QueryHandler(get_endpoint, post_endpoint)
     mem_in_MB_instances = tracemalloc.get_traced_memory()[1] / 1024.0 / 1024.0  # peak memory
     tracemalloc.stop()
     # initial insert of random values labeled with the suffix _new_value. These are used as a starting point for
@@ -161,10 +161,11 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     if procedure_to_evaluate != 'init_versioning':
         rdf_engine.version_all_rows(versioning_mode=vers_mode, initial_timestamp=init_timestamp)
 
+    # TODO 20210812: Change cite_query --> mint_query_pid and re-cite_query --> re-execute_existing_query
     # Procedures to evaluate and parameters
-    procs = {'cite_query': [citation.cite, (query, metadata)],
+    procs = {'cite_query': [citation.mint_query_pid, (query, metadata)],
              'init_versioning': [rdf_engine.version_all_rows, [vers_mode]],
-             're-cite_query': [citation.cite, (query, metadata)],
+             're-cite_query': [citation.mint_query_pid, (query, metadata)],
              'retrieve_live_data': [rdf_engine.get_data, [query]],
              'retrieve_history_data': [rdf_engine.get_data, (query, current_datetime)]}
 
@@ -223,34 +224,38 @@ for i in range(10):
     logging.info("Starting graphdb-free ...")
     subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
                      stderr=None, close_fds=True)
-    time.sleep(15)
+    time.sleep(60)
 
     param_sets = set([set[:5] for set in my_index.tolist()])
     for c, param_set in enumerate(param_sets):
+        logging.info("Scenario {0} starting".format(c))
+        # try:
+        evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i))
+        # except Exception as e:
+        #     reset_experiment(current_eval_params['procedure_to_evaluate'], current_eval_params['get_endpoint'],
+        #                      current_eval_params['post_endpoint'], current_eval_params['query_checksum'])"""
+
+        #    continue
 
         # Restart graphdb-free every 17th scenario
-        if (c+1) % (len(param_sets)/8) == 0:
-            # kill graphdb-free
-            subprocess.Popen(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
-            logging.info("Closed graph-db free")
+        # if (c+1) % 8 == 0:
+        # kill graphdb-free
+        # TODO Delete repository to free heap memory
+        subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
+        subprocess.call(['killall', '-9', 'chrome'], stdout=subprocess.PIPE, universal_newlines=True)
+        logging.info("Closed graph-db free and chrome")
 
-            # start graphdb-free
-            subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
-                             stderr=None, close_fds=True)
-            time.sleep(15)
-            logging.info("Started graph-db free")
-
-        logging.info("Scenario {0} starting".format(c))
-        try:
-            evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i))
-        except Exception as e:
-            reset_experiment(current_eval_params['procedure_to_evaluate'], current_eval_params['get_endpoint'],
-                             current_eval_params['post_endpoint'], current_eval_params['query_checksum'])
-
-            continue
+        # start graphdb-free
+        logging.info("Starting graphdb-free ...")
+        subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
+                         stderr=None, close_fds=True)
+        # TODO: Create repository and load data via command line
+        # https://graphdb.ontotext.com/documentation/free/creating-a-repository.html
+        # https://graphdb.ontotext.com/documentation/standard/loading-data-using-the-loadrdf-tool.html
+        time.sleep(60)
 
     # Close graphdb-free
-    subprocess.Popen(['killall', '-9', 'graphdb-free'],stdout=subprocess.PIPE, universal_newlines=True)
+    subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
     logging.info("Closed graph-db free")
 
 # Use to run single scenarios which failed because of a heap overflow in GraphDB
