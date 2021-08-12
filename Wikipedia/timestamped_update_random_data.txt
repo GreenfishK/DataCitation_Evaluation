@@ -3,18 +3,18 @@
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX dc: <http://purl.org/dc/elements/1.1/>
-PREFIX citing: <https://github.com/GreenfishK/DataCitation/citing/>
+PREFIX versioning: <https://github.com/GreenfishK/DataCitation/vers/>
 
 delete {
-    <<?subjectToUpdate ?predicateToUpdate ?objectToUpdate>> citing:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime
+    <<?subjectToUpdate ?predicateToUpdate ?objectToUpdate>> vers:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime
 }
 insert {
     # outdate old triple with date as of now()
-    <<?subjectToUpdate ?predicateToUpdate ?objectToUpdate>> citing:valid_until ?newVersion.
+    <<?subjectToUpdate ?predicateToUpdate ?objectToUpdate>> vers:valid_until ?newVersion.
     # update new row with value and timestamp as of now()
     ?subjectToUpdate ?predicateToUpdate ?newValue. # new value
-    <<?subjectToUpdate ?predicateToUpdate ?newValue>> citing:valid_from ?newVersion ;
-                                                      citing:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime.
+    <<?subjectToUpdate ?predicateToUpdate ?newValue>> vers:valid_from ?newVersion ;
+                                                      vers:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime.
 }
 where {
     {
@@ -26,7 +26,7 @@ where {
     }
 
     # versioning
-    <<?subjectToUpdate ?predicateToUpdate ?objectToUpdate>> citing:valid_until ?valid_until .
+    <<?subjectToUpdate ?predicateToUpdate ?objectToUpdate>> vers:valid_until ?valid_until .
     BIND(xsd:dateTime(NOW()) AS ?newVersion).
     filter(?valid_until = "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime)
     filter(?newValue != ?objectToUpdate) # nothing should be changed if old and new value are the same

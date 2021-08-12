@@ -3,12 +3,12 @@
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX dc: <http://purl.org/dc/elements/1.1/>
-PREFIX citing: <https://github.com/GreenfishK/DataCitation/citing/>
+PREFIX vers: <https://github.com/GreenfishK/DataCitation/versioning/>
 
 insert {
     ?s ?p ?new_label.
-    <<?s ?p ?new_label>> citing:valid_from ?newVersion.
-    <<?s ?p ?new_label>> citing:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime.
+    <<?s ?p ?new_label>> vers:valid_from ?newVersion.
+    <<?s ?p ?new_label>> vers:valid_until "9999-12-31T00:00:00.000+02:00"^^xsd:dateTime.
 } where
 {
     {

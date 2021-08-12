@@ -1,9 +1,5 @@
-import http
-import os
 import subprocess
-import rdf_data_citation.rdf_star
 from SPARQLWrapper import SPARQLWrapper, DIGEST, POST, GET, JSON
-from SPARQLWrapper.Wrapper import QueryResult
 from rdf_data_citation import query_handler as ct
 from rdf_data_citation import persistent_id_utils as ct_ut
 from rdf_data_citation import rdf_star as rdf
@@ -17,6 +13,7 @@ import tracemalloc
 from datetime import datetime, timedelta, timezone
 import tzlocal
 import gc
+import pexpect
 
 # Read config parameters such as query checksums of the evaluation queries and rdf store endpoints
 config = configparser.ConfigParser()
@@ -57,6 +54,64 @@ current_eval_params = {"procedures_to_evaluate": "",
                        "query_checksum": ""}
 
 
+def delete_repos():
+    # Delete FHIR
+    process = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    process.sendline("drop DataCitation_FHIR")
+    process.sendline("yes")
+    time.sleep(7)
+    process.close()
+
+    # Delete FHIR
+    process = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    process.sendline("drop DataCitation_CategoryLabels")
+    process.sendline("yes")
+    time.sleep(7)
+    process.close()
+
+
+def create_repos_with_data():
+    # Create FHIR
+    create1 = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    create1.sendline("create free")
+    create1.sendline("DataCitation_FHIR")
+    create1.sendline("Repository for Evaluation of the RDF Data Citation API")
+    for k in range(18):
+        create1.sendline("")
+    create1.sendline("yes")
+    time.sleep(7)
+    create1.close()
+
+    # Load FHIR
+    fhir_data_path = "/home/filip/Dokumente/Uni/Master/8._Semester/Master_thesis/Research/Evaluation/RDF Data Citation API/orig_data/fhir.rdf.ttl"
+    load1 = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    load1.sendline('open DataCitation_FHIR')
+    load1.sendline('load "{0}/fhir.ttl"'.format(fhir_data_path))
+    load1.sendline('load "{0}/rim.rdf.ttl"'.format(fhir_data_path))
+    load1.sendline('load "{0}/w5.rdf.ttl"'.format(fhir_data_path))
+    time.sleep(20)
+    load1.close()
+
+    # create Wiki
+    create2 = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    create2.sendline("create free")
+    create2.sendline("DataCitation_CategoryLabels")
+    create2.sendline("Repository for Evaluation of the RDF Data Citation API")
+    for k in range(18):
+        create2.sendline("")
+    create2.sendline("yes")
+    time.sleep(7)
+    create2.close()
+
+    # Load Wiki
+    wiki_data_path = "/home/filip/Dokumente/Uni/Master/8._Semester/Master_thesis/Research/Evaluation/RDF Data Citation API/orig_data/wiki"
+    load2 = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    load2.sendline('open DataCitation_CategoryLabels')
+    load2.sendline('load "{0}/category_labels_wkd_uris_en.ttl"'.format(wiki_data_path))
+    time.sleep(40)
+    load2.close()
+
+
 def update_triplestore(insert_statement: str, endpoint):
     sparql_post = SPARQLWrapper(endpoint)
     sparql_post.setHTTPAuth(DIGEST)
@@ -82,19 +137,6 @@ def cnt_triples(endpoint) -> int:
                 cnt = int(entry[sparql_variable]['value'])
     logging.info("Currently there are {0} triples in the database".format(cnt))
     return cnt
-
-
-def reset_experiment(procedure_to_evaluate: str, get_endpoint: str, post_endpoint: str, query_checksum: str):
-    # Reset experiment environment and settings
-    query_store = qs.QueryStore()
-    rdf_engine = rdf.TripleStoreEngine(get_endpoint, post_endpoint)
-    delete_random_data = open("delete_random_data.txt", "r").read()
-    update_triplestore(delete_random_data, post_endpoint)
-    if procedure_to_evaluate != "init_versioning":
-        query_store._remove(config.get("QUERY", query_checksum))
-    rdf_engine.reset_all_versions()
-    # to prevent heap overflow
-    gc.collect()
 
 
 def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, query_type: str,
@@ -198,13 +240,6 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type,
                            procedure_to_evaluate, i)] = [memMB, mem_in_MB_instances, time_elapsed, cnt_trpls]
         eval_results.to_csv(output_file, sep=";")
-        """evaluation_results = open(output_file, "a")
-        evaluation_results.write("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9}\n".format(write_operation, dataset_size,
-                                                                                versioning_mode, query_type,
-                                                                                procedure_to_evaluate, i,
-                                                                                memMB, time_elapsed,
-                                                                                mem_in_MB_instances, cnt_trpls))
-        evaluation_results.close()"""
 
         # Remove citation from query store
         if procedure_to_evaluate == "cite_query":
@@ -212,51 +247,34 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         elif procedure_to_evaluate == "init_versioning":
             rdf_engine.reset_all_versions()
 
-    # Reset experiment environment and settings
-    reset_experiment(procedure_to_evaluate, get_endpoint, post_endpoint, query_checksum)
+    # Reset experiment by recreating the repositories and reloading the data
+    delete_repos()
+    create_repos_with_data()
 
+
+# Start graphdb-free
+logging.info("Starting graphdb-free ...")
+subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
+                 stderr=None, close_fds=True)
+time.sleep(30)
 
 # Run evaluation 10 times
 for i in range(10):
     logging.info("Starting run {0}".format(i))
 
-    # Start graphdb-free
-    logging.info("Starting graphdb-free ...")
-    subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
-                     stderr=None, close_fds=True)
-    time.sleep(60)
-
     param_sets = set([set[:5] for set in my_index.tolist()])
     for c, param_set in enumerate(param_sets):
         logging.info("Scenario {0} starting".format(c))
-        # try:
         evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i))
-        # except Exception as e:
-        #     reset_experiment(current_eval_params['procedure_to_evaluate'], current_eval_params['get_endpoint'],
-        #                      current_eval_params['post_endpoint'], current_eval_params['query_checksum'])"""
 
-        #    continue
+        # Re-create repositories to reset the Java Heap
+        if (c+1) % 8 == 0:
+            create_repos_with_data()
 
-        # Restart graphdb-free every 17th scenario
-        # if (c+1) % 8 == 0:
-        # kill graphdb-free
-        # TODO Delete repository to free heap memory
-        subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
-        subprocess.call(['killall', '-9', 'chrome'], stdout=subprocess.PIPE, universal_newlines=True)
-        logging.info("Closed graph-db free and chrome")
-
-        # start graphdb-free
-        logging.info("Starting graphdb-free ...")
-        subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
-                         stderr=None, close_fds=True)
-        # TODO: Create repository and load data via command line
-        # https://graphdb.ontotext.com/documentation/free/creating-a-repository.html
-        # https://graphdb.ontotext.com/documentation/standard/loading-data-using-the-loadrdf-tool.html
-        time.sleep(60)
-
-    # Close graphdb-free
-    subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
-    logging.info("Closed graph-db free")
+# Close graphdb-free
+subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
+logging.info("Closed graph-db free")
+logging.info("Evaluation finished")
 
 # Use to run single scenarios which failed because of a heap overflow in GraphDB
 # evaluate("timestamped_update", "big", "q_perf", "complex_query", "re-cite_query", "evaluation_results6.csv")
