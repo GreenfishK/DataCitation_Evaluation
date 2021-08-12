@@ -56,14 +56,16 @@ current_eval_params = {"procedures_to_evaluate": "",
 
 def delete_repos():
     # Delete FHIR
-    process = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    logging.info("Deleting FHIR repository")
+    process = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
     process.sendline("drop DataCitation_FHIR")
     process.sendline("yes")
     time.sleep(7)
     process.close()
 
-    # Delete FHIR
-    process = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    # Delete Wiki
+    logging.info("Deleting Wiki repository")
+    process = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
     process.sendline("drop DataCitation_CategoryLabels")
     process.sendline("yes")
     time.sleep(7)
@@ -72,7 +74,8 @@ def delete_repos():
 
 def create_repos_with_data():
     # Create FHIR
-    create1 = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    logging.info("Creating FHIR repository")
+    create1 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
     create1.sendline("create free")
     create1.sendline("DataCitation_FHIR")
     create1.sendline("Repository for Evaluation of the RDF Data Citation API")
@@ -83,17 +86,19 @@ def create_repos_with_data():
     create1.close()
 
     # Load FHIR
-    fhir_data_path = "/home/filip/Dokumente/Uni/Master/8._Semester/Master_thesis/Research/Evaluation/RDF Data Citation API/orig_data/fhir.rdf.ttl"
-    load1 = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    logging.info("Loading data into FHIR repository")
+    fhir_data_path = config.get("GRAPHDB_RDFSTORE_FHIR", "data_path")
+    load1 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
     load1.sendline('open DataCitation_FHIR')
-    load1.sendline('load "{0}/fhir.ttl"'.format(fhir_data_path))
-    load1.sendline('load "{0}/rim.rdf.ttl"'.format(fhir_data_path))
-    load1.sendline('load "{0}/w5.rdf.ttl"'.format(fhir_data_path))
+    load1.sendline('load "{0}/fhir.ttl"'.format(fhir_data_path.strip('"')))
+    load1.sendline('load "{0}/rim.rdf.ttl"'.format(fhir_data_path.strip('"')))
+    load1.sendline('load "{0}/w5.rdf.ttl"'.format(fhir_data_path.strip('"')))
     time.sleep(20)
     load1.close()
 
     # create Wiki
-    create2 = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    logging.info("Creating Wiki repository")
+    create2 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
     create2.sendline("create free")
     create2.sendline("DataCitation_CategoryLabels")
     create2.sendline("Repository for Evaluation of the RDF Data Citation API")
@@ -104,10 +109,11 @@ def create_repos_with_data():
     create2.close()
 
     # Load Wiki
-    wiki_data_path = "/home/filip/Dokumente/Uni/Master/8._Semester/Master_thesis/Research/Evaluation/RDF Data Citation API/orig_data/wiki"
-    load2 = pexpect.spawnu('/opt/graphdb-free/app/bin/console')
+    logging.info("Loading data into Wiki repository")
+    wiki_data_path = config.get("GRAPHDB_RDFSTORE_WIKI", "data_path")
+    load2 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
     load2.sendline('open DataCitation_CategoryLabels')
-    load2.sendline('load "{0}/category_labels_wkd_uris_en.ttl"'.format(wiki_data_path))
+    load2.sendline('load "{0}/category_labels_wkd_uris_en.ttl"'.format(wiki_data_path.strip('"')))
     time.sleep(40)
     load2.close()
 
@@ -257,6 +263,7 @@ logging.info("Starting graphdb-free ...")
 subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
                  stderr=None, close_fds=True)
 time.sleep(30)
+create_repos_with_data()
 
 # Run evaluation 10 times
 for i in range(10):
@@ -272,6 +279,7 @@ for i in range(10):
             create_repos_with_data()
 
 # Close graphdb-free
+delete_repos()
 subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
 logging.info("Closed graph-db free")
 logging.info("Evaluation finished")
