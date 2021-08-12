@@ -274,10 +274,8 @@ for i in range(10):
         try:
             evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i))
         except Exception as e:
+            print(e)
             delete_repos()
-        # Re-create repositories to reset the Java Heap
-        if (c+1) % 8 == 0:
-            create_repos_with_data()
 
 # Close graphdb-free
 delete_repos()
