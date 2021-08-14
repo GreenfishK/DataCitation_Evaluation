@@ -109,7 +109,7 @@ def create_repos_with_data(repo_id: str):
         time.sleep(5)
         cnt_triples(config.get("GRAPHDB_RDFSTORE_FHIR", "get").format(repo_id=repo_id))
 
-    if repo_id == 'DataCitation_CategoryLabels':
+    if repo_id.startswith('DataCitation_CategoryLabels'):
         # create Wiki
         logging.info("Creating Wiki repository")
         create2 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
