@@ -115,7 +115,7 @@ def create_repos_with_data(repo_id: str):
         create2 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
         create2.timeout = 300
         create2.sendline("create free")
-        create2.sendline("DataCitation_CategoryLabels_{0}".format(repo_id))
+        create2.sendline("{0}".format(repo_id))
         create2.sendline("Repository for Evaluation of the RDF Data Citation API")
         for k in range(18):
             create2.sendline("")
