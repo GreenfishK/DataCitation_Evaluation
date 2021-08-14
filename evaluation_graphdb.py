@@ -11,8 +11,6 @@ import time
 import pandas as pd
 import tracemalloc
 from datetime import datetime, timedelta, timezone
-import tzlocal
-import gc
 import pexpect
 
 # Read config parameters such as query checksums of the evaluation queries and rdf store endpoints
@@ -54,68 +52,91 @@ current_eval_params = {"procedures_to_evaluate": "",
                        "query_checksum": ""}
 
 
-def delete_repos():
-    # Delete FHIR
-    logging.info("Deleting FHIR repository")
-    process = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
-    process.sendline("drop DataCitation_FHIR")
-    process.sendline("yes")
-    time.sleep(7)
-    process.close()
+def delete_repos(repo_id: str):
+    logging.info("Deleting repo {0}".format(repo_id))
+    if repo_id.startswith('DataCitation_FHIR'):
+        # Delete FHIR
+        logging.info("Deleting FHIR repository")
+        process1 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
+        process1.timeout = 25
+        process1.sendline("drop {0}".format(repo_id))
+        process1.sendline("yes")
+        process1.expect("Dropped repository '{0}'".format(repo_id))
+        process1.close()
 
-    # Delete Wiki
-    logging.info("Deleting Wiki repository")
-    process = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
-    process.sendline("drop DataCitation_CategoryLabels")
-    process.sendline("yes")
-    time.sleep(7)
-    process.close()
+    if repo_id.startswith('DataCitation_CategoryLabels'):
+        # Delete Wiki
+        logging.info("Deleting Wiki repository")
+        process2 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
+        process2.timeout = 40
+        process2.sendline("drop {0}".format(repo_id))
+        process2.sendline("yes")
+        process2.expect("Dropped repository '{0}'".format(repo_id))
+        process2.close()
 
 
-def create_repos_with_data():
-    # Create FHIR
-    logging.info("Creating FHIR repository")
-    create1 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
-    create1.sendline("create free")
-    create1.sendline("DataCitation_FHIR")
-    create1.sendline("Repository for Evaluation of the RDF Data Citation API")
-    for k in range(18):
-        create1.sendline("")
-    create1.sendline("yes")
-    time.sleep(7)
-    create1.close()
+def create_repos_with_data(repo_id: str):
+    if repo_id.startswith('DataCitation_FHIR'):
+        # Create FHIR
+        logging.info("Creating FHIR repository")
+        create1 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
+        create1.timeout = 300
+        create1.sendline("create free")
+        create1.sendline("{0}".format(repo_id))
+        create1.sendline("Repository for Evaluation of the RDF Data Citation API")
+        for k in range(18):
+            create1.sendline("")
+        create1.sendline("yes")
+        create1.expect("Repository created")
+        create1.close()
 
-    # Load FHIR
-    logging.info("Loading data into FHIR repository")
-    fhir_data_path = config.get("GRAPHDB_RDFSTORE_FHIR", "data_path")
-    load1 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
-    load1.sendline('open DataCitation_FHIR')
-    load1.sendline('load "{0}/fhir.ttl"'.format(fhir_data_path.strip('"')))
-    load1.sendline('load "{0}/rim.rdf.ttl"'.format(fhir_data_path.strip('"')))
-    load1.sendline('load "{0}/w5.rdf.ttl"'.format(fhir_data_path.strip('"')))
-    time.sleep(20)
-    load1.close()
+        # Load FHIR
+        logging.info("Loading data into FHIR repository")
+        fhir_data_path = config.get("GRAPHDB_RDFSTORE_FHIR", "data_path")
+        load1 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
+        load1.timeout = 300
+        load1.sendline('open {0}'.format(repo_id))
+        load1.expect_exact("Opened repository '{0}'".format(repo_id))
+        load1.sendline('load "{0}/fhir.ttl"'.format(fhir_data_path.strip('"')))
+        load1.expect("Data has been added to the repository")
+        load1.sendline('load "{0}/rim.ttl"'.format(fhir_data_path.strip('"')))
+        load1.expect("Data has been added to the repository")
+        load1.sendline('load "{0}/w5.ttl"'.format(fhir_data_path.strip('"')))
+        load1.expect("Data has been added to the repository")
+        load1.sendline('close')
+        load1.expect_exact("Closing repository '{0}'...".format(repo_id))
+        load1.close()
+        time.sleep(5)
+        cnt_triples(config.get("GRAPHDB_RDFSTORE_FHIR", "get").format(repo_id=repo_id))
 
-    # create Wiki
-    logging.info("Creating Wiki repository")
-    create2 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
-    create2.sendline("create free")
-    create2.sendline("DataCitation_CategoryLabels")
-    create2.sendline("Repository for Evaluation of the RDF Data Citation API")
-    for k in range(18):
-        create2.sendline("")
-    create2.sendline("yes")
-    time.sleep(7)
-    create2.close()
+    if repo_id == 'DataCitation_CategoryLabels':
+        # create Wiki
+        logging.info("Creating Wiki repository")
+        create2 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
+        create2.timeout = 300
+        create2.sendline("create free")
+        create2.sendline("DataCitation_CategoryLabels_{0}".format(repo_id))
+        create2.sendline("Repository for Evaluation of the RDF Data Citation API")
+        for k in range(18):
+            create2.sendline("")
+        create2.sendline("yes")
+        create2.expect("Repository created")
+        create2.close()
 
-    # Load Wiki
-    logging.info("Loading data into Wiki repository")
-    wiki_data_path = config.get("GRAPHDB_RDFSTORE_WIKI", "data_path")
-    load2 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
-    load2.sendline('open DataCitation_CategoryLabels')
-    load2.sendline('load "{0}/category_labels_wkd_uris_en.ttl"'.format(wiki_data_path.strip('"')))
-    time.sleep(40)
-    load2.close()
+        # Load Wiki
+        logging.info("Loading data into Wiki repository")
+        wiki_data_path = config.get("GRAPHDB_RDFSTORE_WIKI", "data_path")
+        load2 = pexpect.spawnu(config.get("GRAPHDB", "sesame_console_path"))
+        load2.timeout = 300
+        load2.sendline('open {0}'.format(repo_id))
+        load2.expect_exact("Opened repository '{0}'".format(repo_id))
+        load2.sendline('load "{0}/category_labels_wkd_uris_en.ttl"'.format(wiki_data_path.strip('"')))
+        load2.expect("Data has been added to the repository")
+        load2.sendline('close')
+        load2.expect_exact("Closing repository '{0}'...".format(repo_id))
+        load2.close()
+        time.sleep(15)
+        cnt_triples(config.get("GRAPHDB_RDFSTORE_WIKI", "get").format(repo_id=repo_id))
 
 
 def update_triplestore(insert_statement: str, endpoint):
@@ -128,6 +149,7 @@ def update_triplestore(insert_statement: str, endpoint):
 
 def cnt_triples(endpoint) -> int:
     logging.info("Counting triples ...")
+    logging.info(endpoint)
     query = "Select (count(*) as ?cnt) where {?s ?p ?o}"
     sparql_get = SPARQLWrapper(endpoint)
     sparql_get.setReturnFormat(JSON)
@@ -146,19 +168,22 @@ def cnt_triples(endpoint) -> int:
 
 
 def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, query_type: str,
-             procedure_to_evaluate: str, output_file: str):
+             procedure_to_evaluate: str, output_file: str, scenario_nr: int):
     # Evaluation
     logging.info("Start evaluation with parameters: {0}, {1}, {2}, {3}, {4}".format(write_operation, dataset_size,
                                                                                     versioning_mode, query_type,
                                                                                     procedure_to_evaluate))
+    # Create Repo for this scenario
+    dataset_repos = {'small': 'DataCitation_FHIR', 'big': 'DataCitation_CategoryLabels'}
+    repo_id = dataset_repos[dataset_size] + "_" + str(scenario_nr)
+    create_repos_with_data(repo_id)
 
     # Init parameters for evaluation
     assert query_type in ["simple_query", "complex_query", "no_query"], "Query must be either simple, complex or none. " \
                                                                     "Latter should only be used in case of init_versioning"
-
     if dataset_size == "small":
-        get_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'get')
-        post_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'post')
+        get_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'get').format(repo_id=repo_id)
+        post_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'post').format(repo_id=repo_id)
         if procedure_to_evaluate != "init_versioning":
             query = open("FHIR/{0}.txt".format(query_type), "r").read()
             query_checksum = "{0}_fhir_checksum".format(query_type)
@@ -167,8 +192,8 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
             query_checksum = None
         init_insert_random_data = open("FHIR/insert_random_data.txt", "r").read()
     elif dataset_size == "big":
-        get_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'get')
-        post_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'post')
+        get_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'get').format(repo_id=repo_id)
+        post_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'post').format(repo_id=repo_id)
         if procedure_to_evaluate != "init_versioning":
             query = open("Wikipedia/{0}.txt".format(query_type), "r").read()
             query_checksum = "{0}_wiki_checksum".format(query_type)
@@ -253,16 +278,16 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
             rdf_engine.reset_all_versions()
 
     # Reset experiment by recreating the repositories and reloading the data
-    delete_repos()
-    create_repos_with_data()
+    if procedure_to_evaluate != "init_versioning":
+        query_store._remove(config.get("QUERY", query_checksum))
+    delete_repos(repo_id)
 
 
 # Start graphdb-free
 logging.info("Starting graphdb-free ...")
 subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
                  stderr=None, close_fds=True)
-time.sleep(30)
-create_repos_with_data()
+time.sleep(15)
 
 # Run evaluation 10 times
 for i in range(10):
@@ -272,13 +297,11 @@ for i in range(10):
     for c, param_set in enumerate(param_sets):
         logging.info("Scenario {0} starting".format(c))
         try:
-            evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i))
+            evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i), scenario_nr=c)
         except Exception as e:
             print(e)
-            delete_repos()
 
 # Close graphdb-free
-delete_repos()
 subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
 logging.info("Closed graph-db free")
 logging.info("Evaluation finished")
