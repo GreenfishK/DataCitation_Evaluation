@@ -241,7 +241,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
         # Save evaluation results
         eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type, procedure_to_evaluate, i)] \
-            = [memMB, mem_in_MB_instances, time_elapsed, result_set.count(), cnt_trpls]
+            = [memMB, mem_in_MB_instances, time_elapsed, len(result_set.index), cnt_trpls]
         eval_results.to_csv(output_file, sep=";")
 
     # Reset experiment by recreating the repositories and reloading the data
