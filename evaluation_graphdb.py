@@ -190,9 +190,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     # Capture memory of constructed objects
     tracemalloc.start()
-    query_store = qs.QueryStore()
     rdf_engine = rdf.TripleStoreEngine(get_endpoint, post_endpoint)
-    citation = ct.QueryHandler(get_endpoint, post_endpoint)
     mem_in_MB_instances = tracemalloc.get_traced_memory()[1] / 1024.0 / 1024.0  # peak memory
     tracemalloc.stop()
     # initial insert of random values labeled with the suffix _new_value. These are used as a starting point for
@@ -242,8 +240,8 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         update_triplestore(insert_random_data, post_endpoint)
 
         # Save evaluation results
-        eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type,
-                           procedure_to_evaluate, i)] = [memMB, mem_in_MB_instances, time_elapsed, cnt_trpls]
+        eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type, procedure_to_evaluate, i)] \
+            = [memMB, mem_in_MB_instances, time_elapsed, result_set.count(), cnt_trpls]
         eval_results.to_csv(output_file, sep=";")
 
     # Reset experiment by recreating the repositories and reloading the data
