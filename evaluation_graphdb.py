@@ -226,7 +226,6 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         time_elapsed = (time.perf_counter() - time_start)
         memMB = tracemalloc.get_traced_memory()[1] / 1024.0 / 1024.0  # peak memory
         tracemalloc.stop()
-
         # Insert or update new random triples with fixed dataset size (10% of initial superset)
         assert write_operation in ["insert", "timestamped_insert", "timestamped_update"], \
             "Write operation must be either insert, timestamped_insert or timestamped_update"
@@ -258,7 +257,7 @@ time.sleep(15)
 for i in range(10):
     logging.info("Starting run {0}".format(i))
 
-    eval_results[['memory_in_MB', 'Memory_in_MB_instances', 'time_in_seconds', 'cnt_triples']] = np.nan
+    eval_results[['memory_in_MB', 'Memory_in_MB_instances', 'time_in_seconds', 'cnt_triples_dataset', 'cnt_triples_db']] = np.nan
     param_sets = set([set[:5] for set in my_index_1.tolist()])
     for c, param_set in enumerate(param_sets):
         logging.info("Scenario {0} starting".format(c))
