@@ -12,6 +12,7 @@ import pandas as pd
 import tracemalloc
 from datetime import datetime, timedelta, timezone
 import pexpect
+import numpy as np
 
 # Read config parameters such as query checksums of the evaluation queries and rdf store endpoints
 config = configparser.ConfigParser()
@@ -23,27 +24,16 @@ write_operations = ['timestamped_insert', 'timestamped_update']
 dataset_sizes = ['small', 'big']
 versioning_modes = ['q_perf', 'mem_sav']
 query_types = ['simple_query', 'complex_query']
-procedures_to_evaluate = ['mint_query_pid', 're-execute_query', 'retrieve_live_data', 'retrieve_history_data']
+procedures_to_evaluate = ['retrieve_live_data', 'retrieve_history_data']
 increments = list(range(1, 11))
 my_index_1 = pd.MultiIndex.from_product(iterables=[write_operations, dataset_sizes, versioning_modes,
                                                    query_types, procedures_to_evaluate, increments],
                                         names=['write_operation', 'dataset_size', 'versioning_mode',
                                                'query_type', 'procedure_to_evaluate', 'Increment'])
-my_index_2 = pd.MultiIndex.from_product(iterables=[['insert'], dataset_sizes, versioning_modes,
-                                                   ['no_query'], ['init_versioning'], increments],
-                                        names=['write_operation', 'dataset_size', 'versioning_mode',
-                                               'query_type', 'procedure_to_evaluate', 'Increment'])
-my_index = my_index_1.union(my_index_2)
-eval_results = pd.DataFrame(columns=['memory_in_MB', 'Memory_in_MB_instances', 'time_in_seconds', 'cnt_triples'],
-                            index=my_index)
 
-# init metadata
-metadata = ct_ut.MetaData(identifier="simple_query_fhir_eval_20210602143900",
-                          publisher="Filip Kovacevic",
-                          resource_type="RDF",
-                          publication_year="2021",
-                          creator="Filip Kovacevic",
-                          title="Simple FHIR query")
+eval_results = pd.DataFrame(columns=['memory_in_MB', 'Memory_in_MB_instances', 'time_in_seconds',
+                                     'cnt_triples_dataset', 'cnt_triples_db'],
+                            index=my_index_1)
 
 # current evaluation parameters
 current_eval_params = {"procedures_to_evaluate": "",
@@ -184,22 +174,12 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     if dataset_size == "small":
         get_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'get').format(repo_id=repo_id)
         post_endpoint = config.get('GRAPHDB_RDFSTORE_FHIR', 'post').format(repo_id=repo_id)
-        if procedure_to_evaluate != "init_versioning":
-            query = open("FHIR/{0}.txt".format(query_type), "r").read()
-            query_checksum = "{0}_fhir_checksum".format(query_type)
-        else:
-            query = "no_query"
-            query_checksum = None
+        query = open("FHIR/{0}.txt".format(query_type), "r").read()
         init_insert_random_data = open("FHIR/insert_random_data.txt", "r").read()
     elif dataset_size == "big":
         get_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'get').format(repo_id=repo_id)
         post_endpoint = config.get('GRAPHDB_RDFSTORE_WIKI', 'post').format(repo_id=repo_id)
-        if procedure_to_evaluate != "init_versioning":
-            query = open("Wikipedia/{0}.txt".format(query_type), "r").read()
-            query_checksum = "{0}_wiki_checksum".format(query_type)
-        else:
-            query = "no_query"
-            query_checksum = None
+        query = open("Wikipedia/{0}.txt".format(query_type), "r").read()
         init_insert_random_data = open("Wikipedia/insert_random_data.txt", "r").read()
     else:
         raise Exception("Dataset size must either be big or small.")
@@ -207,7 +187,6 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     current_eval_params['procedure_to_evaluate'] = procedure_to_evaluate
     current_eval_params['get_endpoint'] = get_endpoint
     current_eval_params['post_endpoint'] = post_endpoint
-    current_eval_params['query_checksum'] = query_checksum
 
     # Capture memory of constructed objects
     tracemalloc.start()
@@ -222,24 +201,20 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     # Initial versioning
     vieTZObject = timezone(timedelta(hours=2))
-    current_datetime = datetime.now(vieTZObject)
+    init_datetime = datetime.now(vieTZObject)
     if versioning_mode == "mem_sav":
         vers_mode = VersioningMode.SAVE_MEM
         init_timestamp = None
     elif versioning_mode == "q_perf":
         vers_mode = VersioningMode.Q_PERF
-        init_timestamp = current_datetime
+        init_timestamp = init_datetime
     else:
         raise Exception("Please set the versioning mode either to mem_sav or q_perf.")
     if procedure_to_evaluate != 'init_versioning':
         rdf_engine.version_all_rows(versioning_mode=vers_mode, initial_timestamp=init_timestamp)
 
-    # Procedures to evaluate and parameters
-    procs = {'mint_query_pid': [citation.mint_query_pid, (query, metadata)],
-             'init_versioning': [rdf_engine.version_all_rows, [vers_mode]],
-             're-execute_query': [citation.mint_query_pid, (query, metadata)],
-             'retrieve_live_data': [rdf_engine.get_data, [query]],
-             'retrieve_history_data': [rdf_engine.get_data, (query, current_datetime)]}
+    procs = {'retrieve_live_data': [rdf_engine.get_data, [query]],
+             'retrieve_history_data': [rdf_engine.get_data, (query, init_datetime)]}
 
     for i in range(1, 11):
         # Perform action and measure time and memory
@@ -248,7 +223,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         ################################################################################################################
         func = procs[procedure_to_evaluate][0]
         func_params = procs[procedure_to_evaluate][1]
-        func(*func_params)
+        result_set = func(*func_params)
         ################################################################################################################
         time_elapsed = (time.perf_counter() - time_start)
         memMB = tracemalloc.get_traced_memory()[1] / 1024.0 / 1024.0  # peak memory
@@ -271,15 +246,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
                            procedure_to_evaluate, i)] = [memMB, mem_in_MB_instances, time_elapsed, cnt_trpls]
         eval_results.to_csv(output_file, sep=";")
 
-        # Remove citation from query store
-        if procedure_to_evaluate == "mint_query_pid":
-            query_store._remove(config.get("QUERY", query_checksum))
-        elif procedure_to_evaluate == "init_versioning":
-            rdf_engine.reset_all_versions()
-
     # Reset experiment by recreating the repositories and reloading the data
-    if procedure_to_evaluate != "init_versioning":
-        query_store._remove(config.get("QUERY", query_checksum))
     delete_repos(repo_id)
 
 
@@ -293,13 +260,21 @@ time.sleep(15)
 for i in range(10):
     logging.info("Starting run {0}".format(i))
 
-    param_sets = set([set[:5] for set in my_index.tolist()])
+    eval_results[['memory_in_MB', 'Memory_in_MB_instances', 'time_in_seconds', 'cnt_triples']] = np.nan
+    param_sets = set([set[:5] for set in my_index_1.tolist()])
     for c, param_set in enumerate(param_sets):
         logging.info("Scenario {0} starting".format(c))
         try:
-            evaluate(*param_set, "evaluation_results_v20210811_{0}.csv".format(i), scenario_nr=c)
+            evaluate(*param_set, "evaluation_results_v20210815_{0}.csv".format(i), scenario_nr=c)
         except Exception as e:
             print(e)
+        if (c+1) % 8 == 0:
+            subprocess.call(['killall', '-9', 'chrome'], stdout=subprocess.PIPE, universal_newlines=True)
+            subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
+            subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
+                             stderr=None, close_fds=True)
+            time.sleep(15)
+
 
 # Close graphdb-free
 subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)

@@ -5,11 +5,9 @@
 # * rim.ttl (Resource information model)
 # * w5.ttl (classes and predicates)
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX dc: <http://purl.org/dc/elements/1.1/>
-PREFIX fhir: <http://hl7.org/fhir/>
 
 select ?s ?p ?o
-where { 
+where {
 	?s ?p ?o .
-    filter(?s = fhir:Identifier)
-} order by ?s ?p ?o
+    filter(?p = rdfs:label && strends(?o, "new_value"))
+}

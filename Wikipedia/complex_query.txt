@@ -2,27 +2,21 @@
 # RDF dataset that was used in this experiment can be retrieved from:
 # URL: http://downloads.dbpedia.org/2016-10/core-i18n/en/category_labels_wkd_uris_en.ttl.bz2
 # Complex query:
-# Patterns included: Join, Left Join, Union, Filter, Group by + Count, Distinct, Order By, substr, concat, sequence paths
-
+# Patterns included: Join, Union, Aggregation, Filter, Order By, string function
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
-select distinct ?s ?x (concat(substr(str(?y),0,5), substr(str(?y),5,10)) as ?first_ten) (count(?a) as ?cnt_a) (count(?b) as ?cnt_b)
+select ?s ?p (count(?o) as ?cnt_new_values) ?y ?z ?m (count (?x) as ?cnt_x)
 where {
     {
-        ?s rdfs:subClassOf / rdf:type ?x .
-        optional {
-            rdf:type ?a ?b 
-        }
-        filter(?s = rdf:XMLLiteral)
+	?s ?p ?o .
+    filter(?p = rdfs:label && strends(?o, "new_value"))
     }
     union
     {
-        ?s rdfs:subClassOf / rdf:type ?y .
-        optional {
-            rdf:type ?a ?b 
-        }
-        filter(?s = rdf:XMLLiteral)
+       ?x ?y ?z.
+       ?x rdf:type ?m.
+
     }
-} group by ?s ?x ?y
-order by ?cnt_b ?cnt_a ?s ?x ?first_ten
+} group by ?s ?p ?y ?z ?m
+order by ?s ?p
