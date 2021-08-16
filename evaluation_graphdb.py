@@ -166,6 +166,9 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     # Create Repo for this scenario
     dataset_repos = {'small': 'DataCitation_FHIR', 'big': 'DataCitation_CategoryLabels'}
     repo_id = dataset_repos[dataset_size] + "_" + str(scenario_nr)
+    subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
+                     stderr=None, close_fds=True)
+    time.sleep(15)
     create_repos_with_data(repo_id)
     time.sleep(15)
 
@@ -261,16 +264,17 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     # Reset experiment by recreating the repositories and reloading the data
     delete_repos(repo_id)
+    subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
     time.sleep(15)
 
 
 # Start graphdb-free
 logging.info("Starting graphdb-free ...")
-subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
-                 stderr=None, close_fds=True)
-time.sleep(15)
+#subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
+#                 stderr=None, close_fds=True)
+#time.sleep(15)
 
-"""# Run evaluation 10 times
+# Run evaluation 10 times
 for i in range(10):
     logging.info("Starting run {0}".format(i))
 
@@ -293,16 +297,8 @@ for i in range(10):
 # Close graphdb-free
 subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
 logging.info("Closed graph-db free")
-logging.info("Evaluation finished")"""
+logging.info("Evaluation finished")
 
-evaluate("timestamped_insert", "big", "q_perf", "complex_query", "retrieve_live_data",
-         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=4, output_mode="replace_single")
-evaluate("timestamped_update", "big", "q_perf", "complex_query", "retrieve_live_data",
-         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=0, output_mode="replace_single")
-evaluate("timestamped_update", "big", "q_perf", "complex_query", "retrieve_history_data",
-         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=1, output_mode="replace_single")
-evaluate("timestamped_update", "big", "mem_sav", "complex_query", "retrieve_live_data",
-         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=2, output_mode="replace_single")
-evaluate("timestamped_update", "big", "mem_sav", "complex_query", "retrieve_history_data",
-         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=3, output_mode="replace_single")
+#evaluate("timestamped_insert", "big", "q_perf", "complex_query", "retrieve_live_data",
+#         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=4, output_mode="replace_single")
 
