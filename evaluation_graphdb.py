@@ -21,7 +21,7 @@ logging.getLogger().setLevel(int(config.get('LOGGING', 'level')))
 
 # Setup evaluation results table
 write_operations = ['timestamped_insert', 'timestamped_update']
-dataset_sizes = ['small', 'big']
+dataset_sizes = ['big']# 'small']
 versioning_modes = ['q_perf', 'mem_sav']
 query_types = ['simple_query', 'complex_query']
 procedures_to_evaluate = ['retrieve_live_data', 'retrieve_history_data']
@@ -53,6 +53,7 @@ def delete_repos(repo_id: str):
         process1.sendline("yes")
         process1.expect("Dropped repository '{0}'".format(repo_id))
         process1.close()
+        logging.info("Repo {0} deleted".format(repo_id))
 
     if repo_id.startswith('DataCitation_CategoryLabels'):
         # Delete Wiki
@@ -63,6 +64,7 @@ def delete_repos(repo_id: str):
         process2.sendline("yes")
         process2.expect("Dropped repository '{0}'".format(repo_id))
         process2.close()
+        logging.info("Repo {0} deleted".format(repo_id))
 
 
 def create_repos_with_data(repo_id: str):
@@ -79,6 +81,7 @@ def create_repos_with_data(repo_id: str):
         create1.sendline("yes")
         create1.expect("Repository created")
         create1.close()
+        time.sleep(5)
 
         # Load FHIR
         logging.info("Loading data into FHIR repository")
@@ -96,8 +99,6 @@ def create_repos_with_data(repo_id: str):
         load1.sendline('close')
         load1.expect_exact("Closing repository '{0}'...".format(repo_id))
         load1.close()
-        time.sleep(5)
-        cnt_triples(config.get("GRAPHDB_RDFSTORE_FHIR", "get").format(repo_id=repo_id))
 
     if repo_id.startswith('DataCitation_CategoryLabels'):
         # create Wiki
@@ -112,6 +113,7 @@ def create_repos_with_data(repo_id: str):
         create2.sendline("yes")
         create2.expect("Repository created")
         create2.close()
+        time.sleep(5)
 
         # Load Wiki
         logging.info("Loading data into Wiki repository")
@@ -125,8 +127,6 @@ def create_repos_with_data(repo_id: str):
         load2.sendline('close')
         load2.expect_exact("Closing repository '{0}'...".format(repo_id))
         load2.close()
-        time.sleep(15)
-        cnt_triples(config.get("GRAPHDB_RDFSTORE_WIKI", "get").format(repo_id=repo_id))
 
 
 def update_triplestore(insert_statement: str, endpoint):
@@ -153,12 +153,12 @@ def cnt_triples(endpoint) -> int:
         for sparql_variable in entry.keys():
             if sparql_variable == "cnt":
                 cnt = int(entry[sparql_variable]['value'])
-    logging.info("Currently there are {0} triples in the database".format(cnt))
+    logging.info("Currently there are {0} triples in {1}".format(cnt, endpoint))
     return cnt
 
 
 def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, query_type: str,
-             procedure_to_evaluate: str, output_file: str, scenario_nr: int):
+             procedure_to_evaluate: str, output_file: str, scenario_nr: int, output_mode: str = "replace_all"):
     # Evaluation
     logging.info("Start evaluation with parameters: {0}, {1}, {2}, {3}, {4}".format(write_operation, dataset_size,
                                                                                     versioning_mode, query_type,
@@ -167,6 +167,7 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     dataset_repos = {'small': 'DataCitation_FHIR', 'big': 'DataCitation_CategoryLabels'}
     repo_id = dataset_repos[dataset_size] + "_" + str(scenario_nr)
     create_repos_with_data(repo_id)
+    time.sleep(15)
 
     # Init parameters for evaluation
     assert query_type in ["simple_query", "complex_query", "no_query"], "Query must be either simple, complex or none. " \
@@ -238,13 +239,29 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
         cnt_trpls = cnt_triples(get_endpoint)
         update_triplestore(insert_random_data, post_endpoint)
 
-        # Save evaluation results
-        eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type, procedure_to_evaluate, i)] \
-            = [memMB, mem_in_MB_instances, time_elapsed, len(result_set.index), cnt_trpls]
-        eval_results.to_csv(output_file, sep=";")
+        if output_mode == "replace_all":
+            # Save evaluation results
+            eval_results.loc[(write_operation, dataset_size, versioning_mode, query_type, procedure_to_evaluate, i)] \
+                = [memMB, mem_in_MB_instances, time_elapsed, len(result_set.index), cnt_trpls]
+            eval_results.to_csv(output_file, sep=";")
+        elif output_mode == "replace_single":
+            evaluation_results = open(output_file, "a")
+            evaluation_results.write("{0};{1};{2};{3};"
+                                     "{4};{5};{6};{7};{8};"
+                                     "{9};{10}\n".format(write_operation, dataset_size,
+                                                         versioning_mode, query_type,
+                                                         procedure_to_evaluate, i,
+                                                         memMB, mem_in_MB_instances,
+                                                         time_elapsed,
+                                                         len(result_set.index),
+                                                         cnt_trpls))
+            evaluation_results.close()
+        else:
+            raise Exception("Please choose one way how to write to the output file.")
 
     # Reset experiment by recreating the repositories and reloading the data
     delete_repos(repo_id)
+    time.sleep(15)
 
 
 # Start graphdb-free
@@ -253,7 +270,7 @@ subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=Non
                  stderr=None, close_fds=True)
 time.sleep(15)
 
-# Run evaluation 10 times
+"""# Run evaluation 10 times
 for i in range(10):
     logging.info("Starting run {0}".format(i))
 
@@ -262,7 +279,7 @@ for i in range(10):
     for c, param_set in enumerate(param_sets):
         logging.info("Scenario {0} starting".format(c))
         try:
-            evaluate(*param_set, "evaluation_results_v20210815_{0}.csv".format(i), scenario_nr=c)
+            evaluate(*param_set, "evaluation_results_v20210815_big_{0}.csv".format(i), scenario_nr=c)
         except Exception as e:
             print(e)
         if (c+1) % 8 == 0:
@@ -276,5 +293,16 @@ for i in range(10):
 # Close graphdb-free
 subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
 logging.info("Closed graph-db free")
-logging.info("Evaluation finished")
+logging.info("Evaluation finished")"""
+
+evaluate("timestamped_insert", "big", "q_perf", "complex_query", "retrieve_live_data",
+         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=4, output_mode="replace_single")
+evaluate("timestamped_update", "big", "q_perf", "complex_query", "retrieve_live_data",
+         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=0, output_mode="replace_single")
+evaluate("timestamped_update", "big", "q_perf", "complex_query", "retrieve_history_data",
+         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=1, output_mode="replace_single")
+evaluate("timestamped_update", "big", "mem_sav", "complex_query", "retrieve_live_data",
+         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=2, output_mode="replace_single")
+evaluate("timestamped_update", "big", "mem_sav", "complex_query", "retrieve_history_data",
+         "evaluation_results_v20210815_big_{0}.csv".format(0), scenario_nr=3, output_mode="replace_single")
 
