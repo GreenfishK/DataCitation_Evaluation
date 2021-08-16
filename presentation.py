@@ -86,12 +86,12 @@ index_labels = {'timestamped_insert': 'timestamped insert',
 for df in dfs:
     write_operation = index_labels[list(set(df.index.get_level_values(0).tolist()))[0]]
     dataset_size = index_labels[list(set(df.index.get_level_values(1).tolist()))[0]]
-    operation = index_labels[list(set(df.index.get_level_values(4).tolist()))[0]]
+    function_to_evaluate = index_labels[list(set(df.index.get_level_values(4).tolist()))[0]]
     query_type = index_labels[list(set(df.index.get_level_values(3).tolist()))[0]]
 
 
     fig1 = plt.figure()
-    fig1.set_size_inches(32, 18)
+    fig1.set_size_inches(16, 9)
     ax1 = fig1.add_subplot(111)
     ax2 = ax1.twinx()
 
@@ -103,7 +103,7 @@ for df in dfs:
     df_time.xs(dataset_size, level=1).plot(ax=ax2, color=['darkblue', 'orangered'])
     df_trp_ds.xs(dataset_size, level=1).plot(kind='bar', ax=ax1, color=['grey'])
 
-    ax1.set_title("Runtime performance for the {0} dataset when querying {1} with a {2}".format(dataset_size, operation,
+    ax1.set_title("Runtime performance for the {0} dataset when querying {1} with a {2}".format(dataset_size, function_to_evaluate,
                                                                                                 query_type))
     ax1.set_xlabel("Increment with {write_operation}".format(write_operation=write_operation))
     ax1.set_ylabel("Total number of triples in database (colored) \n Number of triples in dataset (grey)")
@@ -115,7 +115,9 @@ for df in dfs:
     ax2.yaxis.label.set_size(16)
 
     ax = plt.gca().set_xticklabels(np.arange(1, 11))
-    plt.show()
+    plt.savefig("plots/{0}_{1}_{2}_{3}.png".format(dataset_size, function_to_evaluate, query_type, write_operation), dpi=100)
+
+
 
 
 
