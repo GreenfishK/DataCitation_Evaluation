@@ -36,8 +36,39 @@ df_small_reth_ts_u_cplx = df_small_reth_ts_update[np.in1d(df_small_reth_ts_updat
 
 df_big = pd.read_csv("evaluation_results_v20210815_big_0.csv", delimiter=";", index_col=[0, 1, 2, 3, 4, 5])
 
+df_big_retrieve_live = df_big[np.in1d(df_big.index.get_level_values(4), ['retrieve_live_data'])]
+df_big_retrieve_history = df_big[np.in1d(df_big.index.get_level_values(4), ['retrieve_history_data'])]
+
+df_big_retl_ts_insert = df_big_retrieve_live[np.in1d(df_big_retrieve_live.index.get_level_values(0),
+                                                                  ['timestamped_insert'])]
+df_big_retl_ts_update = df_big_retrieve_live[np.in1d(df_big_retrieve_live.index.get_level_values(0),
+                                                                  ['timestamped_update'])]
+df_big_reth_ts_insert = df_big_retrieve_history[np.in1d(df_big_retrieve_history.index.get_level_values(0),
+                                                                  ['timestamped_insert'])]
+df_big_reth_ts_update = df_big_retrieve_history[np.in1d(df_big_retrieve_history.index.get_level_values(0),
+                                                                  ['timestamped_update'])]
+
+df_big_retl_ts_i_simp = df_big_retl_ts_insert[np.in1d(df_big_retl_ts_insert.index.get_level_values(3),
+                                                                  ['simple_query'])]
+df_big_retl_ts_i_cplx = df_big_retl_ts_insert[np.in1d(df_big_retl_ts_insert.index.get_level_values(3),
+                                                                  ['complex_query'])]
+df_big_retl_ts_u_simp = df_big_retl_ts_update[np.in1d(df_big_retl_ts_update.index.get_level_values(3),
+                                                                  ['simple_query'])]
+df_big_retl_ts_u_cplx = df_big_retl_ts_update[np.in1d(df_big_retl_ts_update.index.get_level_values(3),
+                                                                  ['complex_query'])]
+df_big_reth_ts_i_simp = df_big_reth_ts_insert[np.in1d(df_big_reth_ts_insert.index.get_level_values(3),
+                                                                  ['simple_query'])]
+df_big_reth_ts_i_cplx = df_big_reth_ts_insert[np.in1d(df_big_reth_ts_insert.index.get_level_values(3),
+                                                                  ['complex_query'])]
+df_big_reth_ts_u_simp = df_big_reth_ts_update[np.in1d(df_big_reth_ts_update.index.get_level_values(3),
+                                                                  ['simple_query'])]
+df_big_reth_ts_u_cplx = df_big_reth_ts_update[np.in1d(df_big_reth_ts_update.index.get_level_values(3),
+                                                                  ['complex_query'])]
+
 dfs = [df_small_retl_ts_i_simp, df_small_retl_ts_i_cplx, df_small_retl_ts_u_simp, df_small_retl_ts_u_cplx,
-       df_small_reth_ts_i_simp, df_small_reth_ts_i_cplx, df_small_reth_ts_u_simp, df_small_reth_ts_u_cplx]
+       df_small_reth_ts_i_simp, df_small_reth_ts_i_cplx, df_small_reth_ts_u_simp, df_small_reth_ts_u_cplx,
+       df_big_retl_ts_i_simp, df_big_retl_ts_i_cplx, df_big_retl_ts_u_simp, df_big_retl_ts_u_cplx,
+       df_big_reth_ts_i_simp, df_big_reth_ts_i_cplx, df_big_reth_ts_u_simp, df_big_reth_ts_u_cplx]
 
 """
 Plot dataframes
@@ -68,9 +99,9 @@ for df in dfs:
     df_trp_ds = df['cnt_triples_dataset'].unstack(level=2)
     df_time = df['time_in_seconds'].unstack(level=2)
 
-    df_trp.xs('small', level=1).plot(kind='bar', ax=ax1)
-    df_time.xs('small', level=1).plot(ax=ax2, color=['darkblue', 'orangered'])
-    df_trp_ds.xs('small', level=1).plot(kind='bar', ax=ax1, color=['grey'])
+    df_trp.xs(dataset_size, level=1).plot(kind='bar', ax=ax1)
+    df_time.xs(dataset_size, level=1).plot(ax=ax2, color=['darkblue', 'orangered'])
+    df_trp_ds.xs(dataset_size, level=1).plot(kind='bar', ax=ax1, color=['grey'])
 
     ax1.set_title("Runtime performance for the {0} dataset when querying {1} with a {2}".format(dataset_size, operation,
                                                                                                 query_type))
