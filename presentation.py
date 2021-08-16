@@ -34,41 +34,57 @@ df_small_reth_ts_u_simp = df_small_reth_ts_update[np.in1d(df_small_reth_ts_updat
 df_small_reth_ts_u_cplx = df_small_reth_ts_update[np.in1d(df_small_reth_ts_update.index.get_level_values(3),
                                                                   ['complex_query'])]
 
+df_big = pd.read_csv("evaluation_results_v20210815_big_0.csv", delimiter=";", index_col=[0, 1, 2, 3, 4, 5])
+
+dfs = [df_small_retl_ts_i_simp, df_small_retl_ts_i_cplx, df_small_retl_ts_u_simp, df_small_retl_ts_u_cplx,
+       df_small_reth_ts_i_simp, df_small_reth_ts_i_cplx, df_small_reth_ts_u_simp, df_small_reth_ts_u_cplx]
+
 """
 Plot dataframes
 """
 
-fig1 = plt.figure()
-ax1 = fig1.add_subplot(111)
-ax2 = ax1.twinx()
+index_labels = {'timestamped_insert': 'timestamped insert',
+                'timestamped_update': 'timestamped update',
+                'retrieve_live_data': 'live data',
+                'retrieve_history_data': 'history data',
+                'small': 'small',
+                'big': 'big',
+                'simple_query': 'simple query',
+                'complex_query': 'complex query'}
 
-df_small_retl_ts_i_simp_trp = df_small_retl_ts_i_simp['cnt_triples_db'].unstack(level=2)
-df_small_retl_ts_i_simp_trp_ds = df_small_retl_ts_i_simp['cnt_triples_dataset'].unstack(level=2)
-df_small_retl_ts_i_simp_time = df_small_retl_ts_i_simp['time_in_seconds'].unstack(level=2)
-
-df_small_retl_ts_i_simp_trp.xs('small', level=1).plot(kind='bar', ax=ax1)
-df_small_retl_ts_i_simp_time.xs('small', level=1).plot(ax=ax2,  color=['darkblue', 'orangered'])
-df_small_retl_ts_i_simp_trp_ds.xs('small', level=1).plot(kind='bar', ax=ax1, color=['grey'])
+for df in dfs:
+    write_operation = index_labels[list(set(df.index.get_level_values(0).tolist()))[0]]
+    dataset_size = index_labels[list(set(df.index.get_level_values(1).tolist()))[0]]
+    operation = index_labels[list(set(df.index.get_level_values(4).tolist()))[0]]
+    query_type = index_labels[list(set(df.index.get_level_values(3).tolist()))[0]]
 
 
-ax1.set_title("Runtime performance for the small dataset when querying live data - Q_PERF vs MEM_SAV")
-ax1.set_xlabel("Increment")
-ax1.set_ylabel("Total number of triples in database (colored) \n Number of triples in dataset (grey)")
-ax2.set_ylabel("Runtime (in seconds)")
+    fig1 = plt.figure()
+    fig1.set_size_inches(32, 18)
+    ax1 = fig1.add_subplot(111)
+    ax2 = ax1.twinx()
 
-ax1.title.set_size(20)
-ax1.xaxis.label.set_size(16)
-ax1.yaxis.label.set_size(16)
-ax2.yaxis.label.set_size(16)
+    df_trp = df['cnt_triples_db'].unstack(level=2)
+    df_trp_ds = df['cnt_triples_dataset'].unstack(level=2)
+    df_time = df['time_in_seconds'].unstack(level=2)
 
-ax = plt.gca().set_xticklabels(np.arange(1, 11))
-plt.show()
+    df_trp.xs('small', level=1).plot(kind='bar', ax=ax1)
+    df_time.xs('small', level=1).plot(ax=ax2, color=['darkblue', 'orangered'])
+    df_trp_ds.xs('small', level=1).plot(kind='bar', ax=ax1, color=['grey'])
 
-# save the plot as a file
-"""fig.savefig('two_different_y_axis_for_single_python_plot_with_twinx.jpg',
-            format='jpeg',
-            dpi=100,
-            bbox_inches='tight')"""
+    ax1.set_title("Runtime performance for the {0} dataset when querying {1} with a {2}".format(dataset_size, operation,
+                                                                                                query_type))
+    ax1.set_xlabel("Increment with {write_operation}".format(write_operation=write_operation))
+    ax1.set_ylabel("Total number of triples in database (colored) \n Number of triples in dataset (grey)")
+    ax2.set_ylabel("Runtime (in seconds)")
 
-df_big = pd.read_csv("evaluation_results_v20210815_big_0.csv", delimiter=";", index_col=[0, 1, 2, 3, 4, 5])
+    ax1.title.set_size(20)
+    ax1.xaxis.label.set_size(16)
+    ax1.yaxis.label.set_size(16)
+    ax2.yaxis.label.set_size(16)
+
+    ax = plt.gca().set_xticklabels(np.arange(1, 11))
+    plt.show()
+
+
 
