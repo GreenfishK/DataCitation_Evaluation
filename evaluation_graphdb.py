@@ -166,8 +166,8 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
     # Create Repo for this scenario
     dataset_repos = {'small': 'DataCitation_FHIR', 'big': 'DataCitation_CategoryLabels'}
     repo_id = dataset_repos[dataset_size] + "_" + str(scenario_nr)
-    subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
-                     stderr=None, close_fds=True)
+    # subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
+    #                 stderr=None, close_fds=True)
     time.sleep(15)
     create_repos_with_data(repo_id)
     time.sleep(15)
@@ -264,15 +264,15 @@ def evaluate(write_operation: str, dataset_size: str, versioning_mode: str, quer
 
     # Reset experiment by recreating the repositories and reloading the data
     delete_repos(repo_id)
-    subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
+    # subprocess.call(['killall', '-9', 'graphdb-free'], stdout=subprocess.PIPE, universal_newlines=True)
     time.sleep(15)
 
 
 # Start graphdb-free
 logging.info("Starting graphdb-free ...")
-#subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
-#                 stderr=None, close_fds=True)
-#time.sleep(15)
+subprocess.Popen(['/opt/graphdb-free/graphdb-free', '-s'], shell=True, stdin=None, stdout=None,
+                 stderr=None, close_fds=True)
+time.sleep(15)
 
 # Run evaluation 10 times
 for i in range(10):
